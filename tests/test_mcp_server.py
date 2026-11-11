@@ -7,7 +7,9 @@ from src.tools import INCIDENTS_DB, STATUS_FILE, fake_status_api, query_incident
 
 @pytest.fixture(scope="module")
 def mcp_client():
-    return OpsMcpClient(INCIDENTS_DB, STATUS_FILE)
+    client = OpsMcpClient(INCIDENTS_DB, STATUS_FILE)
+    yield client
+    client.close()
 
 
 def test_server_exposes_the_two_ops_tools(mcp_client):
@@ -27,6 +29,24 @@ def test_incident_search_over_mcp_matches_local_and_masks_secrets(mcp_client):
     assert "FAKE-SECRET-" not in str(over_mcp)
 
 
+def test_session_is_reused_across_calls_and_reopened_after_drop():
+    client = OpsMcpClient(INCIDENTS_DB, STATUS_FILE)
+    try:
+        for _ in range(3):
+            assert client.call("get_service_status", {"service": "payment-api"})["found"] is True
+        client.list_tools()
+        assert client.sessions_opened == 1  # 서버 프로세스를 한 번만 띄운다
+        with pytest.raises(Exception):  # 도구 오류는 호출한 쪽으로 돌아오고 세션은 그대로 쓴다
+            client.call("get_service_status", {})
+        assert client.call("search_incidents", {"query": "OOM"})["incidents"]
+        assert client.sessions_opened == 1
+        client.close()  # 세션을 닫아도 다음 호출이 새로 연다
+        assert client.call("get_service_status", {"service": "all"})["found"] is True
+        assert client.sessions_opened == 2
+    finally:
+        client.close()
+
+
 def test_unknown_tool_is_rejected_before_calling_the_server(mcp_client):
     with pytest.raises(ValueError):
         mcp_client.call("restart_service", {"service": "payment-api"})
@@ -37,7 +57,9 @@ def test_unknown_tool_is_rejected_before_calling_the_server(mcp_client):
 def mcp_agent(tmp_path, llm):
     from src.agent import RunbookAgent
     from tests.conftest import FakeEmbeddings
-    return RunbookAgent(llm=llm, embeddings=FakeEmbeddings(), state_dir=tmp_path / "state", use_mcp=True)
+    agent = RunbookAgent(llm=llm, embeddings=FakeEmbeddings(), state_dir=tmp_path / "state", use_mcp=True)
+    yield agent
+    agent.close()
 
 
 def test_agent_calls_ops_tools_through_mcp_and_keeps_trace_contract(mcp_agent):
