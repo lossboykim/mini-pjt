@@ -51,9 +51,11 @@ def test_reject_does_not_execute(client, agent):
     done = decide(client, r["thread_id"], "reject")
     assert set(done) == FIVE and done["status"] == "completed"
     assert agent.action_log.read() == []
-    assert not any(t["step"] in ("tool_call", "tool:restart_service") and
-                   (t["input"].get("tool") == "restart_service" or t["step"].startswith("tool:"))
-                   for t in done["trace"] if "restart" in str(t["input"]))
+    # 거부된 조치: 실행한 호출(tool_call)은 없고, 요청과 결정은 도구 이름 단계에 executed=False로 남는다.
+    assert not any(t["step"] == "tool_call" and t["input"].get("tool") == "restart_service" for t in done["trace"])
+    requested = [t for t in done["trace"] if t["step"] == "tool:restart_service"]
+    assert len(requested) == 1
+    assert requested[0]["output"]["decision"] == "reject" and requested[0]["output"]["executed"] is False
     assert client.post("/approve", json={"thread_id": r["thread_id"], "decision": "reject"}).status_code == 409
 
 

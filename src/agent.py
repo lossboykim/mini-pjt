@@ -329,12 +329,14 @@ class RunbookAgent:
             if decision == "approve":
                 result = execute_restart(service, self.action_log, self.status_file, thread_id)
                 executed_any = executed_any or result["executed"]
-            else:  # 거부: 실행한 도구 호출이 없으므로 tool_call을 남기지 않는다
+            else:  # 거부: 실행하지 않는다
                 result = {"executed": False, "action": call["name"], "service": service,
                           "message": "사람이 거부해 실행하지 않았다"}
-            if decision == "approve":
+            if decision == "approve":  # tool_call 단계는 실제로 실행한 호출에만 남긴다
                 trace.append(_step("tool_call", {"tool": call["name"], "args": call["args"]}, result))
-                trace.append(_step(f"tool:{call['name']}", call["args"], result))
+            # 도구 이름 단계는 승인·거부 모두 남긴다: 에이전트가 조치를 요청했고 사람이 어떻게 결정했는지 보여 준다.
+            # (평가의 expected_tools 판정은 이 단계로 호출 여부를 본다. 실행 여부는 output의 executed와 실행 로그가 말한다.)
+            trace.append(_step(f"tool:{call['name']}", call["args"], {"decision": decision, **result}))
             msgs.append(ToolMessage(json.dumps(result, ensure_ascii=False), tool_call_id=call["id"], name=call["name"]))
         return {"messages": msgs, "trace": trace, "pending": [], "acted": True}
 
