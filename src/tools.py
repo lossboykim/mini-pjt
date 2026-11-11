@@ -121,3 +121,16 @@ def make_tools(retriever, incidents_db: Path = INCIDENTS_DB, status_file: Path =
         raise RuntimeError("restart_service는 승인 노드에서만 실행된다")
 
     return [retrieve_runbook, search_incidents, get_service_status, restart_service]
+
+
+# ---------------- 웹 콘솔용 조회 ----------------
+def list_incidents(db_path: Path = INCIDENTS_DB, limit: int = 20) -> list[dict]:
+    """최근 장애 이력(발생일 내림차순). 웹 콘솔의 이력 목록용. 비밀값은 가린다."""
+    con = sqlite3.connect(db_path)
+    con.row_factory = sqlite3.Row
+    try:
+        rows = [dict(r) for r in con.execute("SELECT * FROM incidents ORDER BY occurred_at DESC, id DESC LIMIT ?",
+                                             (int(limit),))]
+    finally:
+        con.close()
+    return [{k: mask_secrets(str(v)) for k, v in r.items()} for r in rows]

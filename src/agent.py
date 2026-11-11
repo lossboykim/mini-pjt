@@ -283,7 +283,7 @@ class RunbookAgent:
         self.retriever = RunbookRetriever(
             embeddings, llm=self.llm, docs_dir=docs_dir,
             index_dir=index_dir or (self.state_dir / "index" if state_dir else DEFAULT_INDEX_DIR))
-        incidents_path = Path(incidents_db) if incidents_db else INCIDENTS_DB
+        incidents_path = self.incidents_db = Path(incidents_db) if incidents_db else INCIDENTS_DB
         # MCP 서버 연동(Day 4): 장애 이력·서비스 상태 조회는 MCP 서버(src/mcp_server.py)를 거친다
         self.mcp = OpsMcpClient(incidents_path, self.status_file) if use_mcp else None
         self.tools = make_tools(self.retriever, incidents_path, self.status_file,
@@ -549,13 +549,88 @@ class RunbookAgent:
             return self._response(thread_id)
 
     def approve(self, thread_id: str, decision: str) -> dict:
-        if decision not in ("approve", "reject"):
-            raise ValueError("decision은 approve 또는 reject여야 한다")
         with self._lock:
-            if self.action_log.has_thread(thread_id):
-                raise LookupError("이미 처리된 thread_id다")
-            if not self._pending_interrupts(self.graph.get_state(self._cfg(thread_id))):
-                raise LookupError("승인 대기 중인 조치가 없다")
+            self._check_approvable(thread_id, decision)
             with self._tracing():
                 self.graph.invoke(Command(resume=decision), self._cfg(thread_id))
             return self._response(thread_id)
+
+    def _check_approvable(self, thread_id: str, decision: str) -> None:
+        if decision not in ("approve", "reject"):
+            raise ValueError("decision은 approve 또는 reject여야 한다")
+        if self.action_log.has_thread(thread_id):
+            raise LookupError("이미 처리된 thread_id다")
+        if not self._pending_interrupts(self.graph.get_state(self._cfg(thread_id))):
+            raise LookupError("승인 대기 중인 조치가 없다")
+
+    # ---------- 단계별 스트리밍(웹 콘솔용) ----------
+    def query_stream(self, question: str, thread_id: str | None = None):
+        """query와 같은 일을 하되, 그래프가 단계를 마칠 때마다 새 trace 단계를 내보낸다.
+
+        내보내는 이벤트(JSON 한 줄씩): {"type": "start", "thread_id"}, {"type": "step", "step": {...}},
+        {"type": "result", "response": <query와 같은 응답>}, 오류면 {"type": "error", "message"}.
+        """
+        thread_id = thread_id or str(uuid.uuid4())
+
+        def run():
+            snap = self.graph.get_state(self._cfg(thread_id))
+            if self._pending_interrupts(snap):  # 승인 대기 중이면 새 질의를 처리하지 않는다(query와 같다)
+                return
+            yield from self._stream_graph({"messages": [HumanMessage(question)]}, thread_id, seen=0)
+
+        return self._stream_events(thread_id, run)
+
+    def approve_stream(self, thread_id: str, decision: str):
+        """approve와 같은 일을 단계별로 내보낸다. 승인할 수 없는 대화면 스트림을 열기 전에 예외를 올린다."""
+        with self._lock:
+            self._check_approvable(thread_id, decision)
+
+        def run():
+            self._check_approvable(thread_id, decision)  # 잠금 안에서 한 번 더 본다(그 사이 다른 요청이 처리했을 수 있다)
+            seen = len(self.graph.get_state(self._cfg(thread_id)).values.get("trace", []))
+            yield from self._stream_graph(Command(resume=decision), thread_id, seen=seen)
+
+        return self._stream_events(thread_id, run)
+
+    def _stream_graph(self, graph_input, thread_id: str, seen: int):
+        # 노드는 trace 전체를 돌려준다. 새로 붙은 단계만 내보내고, 턴 시작(guard)처럼 trace가 새로 시작되면 처음부터 센다.
+        for update in self.graph.stream(graph_input, self._cfg(thread_id), stream_mode="updates"):
+            for node_update in update.values():
+                if not isinstance(node_update, dict) or "trace" not in node_update:
+                    continue
+                trace = node_update["trace"]
+                if len(trace) < seen:
+                    seen = 0
+                for step in trace[seen:]:
+                    yield {"type": "step", "step": _scrub(step)}
+                seen = len(trace)
+
+    def _stream_events(self, thread_id: str, run):
+        """그래프 실행은 전용 스레드 하나에서 끝까지 하고, 이벤트는 큐로 넘긴다.
+
+        웹 서버는 스트리밍 응답을 조각마다 다른 실행 컨텍스트에서 꺼낸다. 추적 설정(contextvars)을 여러 조각에 걸쳐
+        열어 두면 닫을 때 'created in a different Context' 오류가 나므로, 실행을 한 스레드에 묶는다.
+        받는 쪽이 끊겨도 실행은 끝까지 마쳐 대화 상태가 중간에 끊기지 않는다.
+        """
+        import queue
+
+        def worker(out: "queue.Queue"):
+            try:
+                with self._lock:
+                    try:
+                        with self._tracing():
+                            for event in run():
+                                out.put(event)
+                        out.put({"type": "result", "response": self._response(thread_id)})
+                    except Exception as error:  # noqa: BLE001 - 화면에 오류를 알리고 스트림을 닫는다
+                        out.put({"type": "error", "message": _scrub(f"{type(error).__name__}: {error}")})
+            finally:
+                out.put(None)
+
+        def events():
+            yield {"type": "start", "thread_id": thread_id}
+            out: queue.Queue = queue.Queue()
+            threading.Thread(target=worker, args=(out,), name="graph-stream", daemon=True).start()
+            while (event := out.get()) is not None:
+                yield event
+        return events()
