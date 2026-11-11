@@ -64,7 +64,7 @@ FINAL_INSTRUCTION = (
     "지금까지의 도구 결과만 근거로 사용자에게 줄 최종 답을 작성하라. "
     "answer에는 런북에 있는 절차만 쓰고, 비밀값은 쓰지 않는다. "
     "answer에 쓴 근거의 doc_id를 cited_doc_ids에 모두 넣는다: 런북 조각(runbooks/...), "
-    "장애 이력(incidents/<ID>), 서비스 상태(status/<서비스>). answer에 쓰지 않은 것은 넣지 않는다. "
+    "장애 이력(incidents/<ID>), 서비스 상태(status/<서비스>, 전체 요약은 status/all). answer에 쓰지 않은 것은 넣지 않는다. "
     "장애 이력과 서비스 상태의 수치는 도구 결과에 있는 값 그대로 쓴다. "
     "런북·장애 이력·서비스 상태 어디에도 근거가 없으면 grounded를 false로 한다. "
     "조치를 승인 요청했다면 실행 전에 사람의 승인을 요청했다는 사실과 사람의 결정(approve/reject), 실제 실행 여부를 "
@@ -128,6 +128,8 @@ def _step(step: str, inp: Any, out: Any) -> dict:
 RUNBOOK_PREFIX = "runbooks/"
 INCIDENT_PREFIX = "incidents/"
 STATUS_PREFIX = "status/"
+STATUS_ALL_ID = STATUS_PREFIX + "all"
+ACTION_PREFIX = "actions/"
 STATUS_FIELDS = (("status", "상태"), ("pods_ready", "준비된 파드"), ("restarts_last_hour", "최근 1시간 재시작"),
                  ("error_rate_pct", "에러율(%)"), ("p95_latency_ms", "p95 지연(ms)"), ("last_deploy", "마지막 배포"),
                  ("note", "비고"))
@@ -138,6 +140,15 @@ INCIDENT_FIELDS = (("service", "서비스"), ("occurred_at", "발생일"), ("sev
 def _status_text(service: str, info: dict) -> str:
     lines = [f"[서비스 상태] {service}"]
     lines += [f"{label}: {info[key]}" for key, label in STATUS_FIELDS if info.get(key) not in (None, "")]
+    return "\n".join(lines)
+
+
+def _status_all_text(services: dict) -> str:
+    """전체 상태 요약(도구 호출 한 번의 결과)을 근거 하나로 담는다. 서비스마다 한 줄."""
+    lines = ["[서비스 상태] 전체 요약"]
+    for svc, info in services.items():
+        fields = ", ".join(f"{label} {info[key]}" for key, label in STATUS_FIELDS if info.get(key) not in (None, ""))
+        lines.append(f"- {svc}: {fields}")
     return "\n".join(lines)
 
 
@@ -163,9 +174,8 @@ def ops_contexts(tool_name: str, result: dict) -> list[dict]:
             out.append({"doc_id": INCIDENT_PREFIX + str(inc.get("id", "")), "text": drop_masked_lines("\n".join(lines))})
         return out
     if tool_name == "get_service_status" and result.get("found"):
-        if result.get("service") == "all":
-            return [{"doc_id": STATUS_PREFIX + svc, "text": _status_text(svc, info)}
-                    for svc, info in result.get("services", {}).items()]
+        if result.get("service") == "all":  # 요약 한 번은 근거 하나로 담는다(서비스마다 나누면 근거가 4~5개로 불어난다)
+            return [{"doc_id": STATUS_ALL_ID, "text": _status_all_text(result.get("services", {}))}]
         return [{"doc_id": STATUS_PREFIX + result["service"], "text": _status_text(result["service"], result)}]
     return []
 
@@ -178,6 +188,9 @@ def pick_contexts(contexts: list[dict], cited: list[str]) -> list[dict]:
     runbooks = [c for c in contexts if c["doc_id"].startswith(RUNBOOK_PREFIX)]
     ops = [c for c in contexts if not c["doc_id"].startswith(RUNBOOK_PREFIX)]
     cited_set = set(cited)
+    have = {c["doc_id"] for c in contexts}
+    if STATUS_ALL_ID in have and any(i.startswith(STATUS_PREFIX) and i not in have for i in cited_set):
+        cited_set.add(STATUS_ALL_ID)  # 서비스별로 인용했지만 그 서비스는 전체 요약에만 있다
     pick = lambda group: [c for c in group if c["doc_id"] in cited_set] or group  # noqa: E731
     return pick(runbooks) + pick(ops)
 
@@ -203,6 +216,20 @@ def approval_record(approvals: list[dict]) -> str:
             result = "사람이 거부(reject)해 실행하지 않았습니다"
         lines.append(f"- {what}: 실행 전에 사람에게 승인을 요청했고, {result}.")
     return "\n\n**승인 기록**\n" + "\n".join(lines)
+
+
+def action_contexts(approvals: list[dict]) -> list[dict]:
+    """사람 승인을 거친 조치의 기록을 근거로 만든다. 답 끝의 승인 기록과 같은 출처(승인 결정, 실행 결과)다."""
+    out = []
+    for a in approvals:
+        lines = [f"[조치 기록] {a['service']} {ACTION_LABELS.get(a['action'], a['action'])}({a['action']})",
+                 "승인 요청: 실행 전에 사람에게 승인을 요청했다",
+                 f"사람의 결정: {a['decision']}",
+                 f"실행 여부: {'실행했다' if a['executed'] else '실행하지 않았다'}"]
+        if a.get("message"):
+            lines.append(f"결과: {a['message']}")
+        out.append({"doc_id": f"{ACTION_PREFIX}{a['action']}/{a['service']}", "text": "\n".join(lines)})
+    return out
 
 
 def _scrub(value: Any) -> Any:
@@ -444,7 +471,7 @@ class RunbookAgent:
             trace.append(_step(f"tool:{call['name']}", call["args"], {"decision": decision, **result}))
             msgs.append(ToolMessage(json.dumps(result, ensure_ascii=False), tool_call_id=call["id"], name=call["name"]))
             approvals.append({"action": call["name"], "service": service, "decision": decision,
-                              "executed": bool(result["executed"])})
+                              "executed": bool(result["executed"]), "message": result.get("message", "")})
         return {"messages": msgs, "trace": trace, "pending": [], "acted": True, "approvals": approvals}
 
     def _final(self, state: State) -> dict:
@@ -458,8 +485,10 @@ class RunbookAgent:
         grounded = bool((res.grounded or state.get("acted")) and has_evidence)
         trace = list(state["trace"])
         if grounded:
-            picked = pick_contexts(contexts, res.cited_doc_ids)
-            answer = res.answer + approval_record(state.get("approvals", []))
+            approvals = state.get("approvals", [])
+            # 답 끝에 붙이는 승인 기록도 근거로 담는다(시스템이 기록한 승인 결정과 실행 결과)
+            picked = pick_contexts(contexts, res.cited_doc_ids) + action_contexts(approvals)
+            answer = res.answer + approval_record(approvals)
             trace.append(_step("final_response", "structured_output",
                                {**res.model_dump(), "answer": answer, "grounded": True, "refused": False,
                                 "cited_doc_ids": [c["doc_id"] for c in picked]}))

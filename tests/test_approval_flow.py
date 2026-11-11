@@ -118,3 +118,14 @@ def test_approval_record_wording():
     assert approval_record([]) == ""
     missing = approval_record([{"action": "restart_service", "service": "nope", "decision": "approve", "executed": False}])
     assert "찾지 못해 실행하지 않았습니다" in missing
+
+
+def test_approval_record_is_also_returned_as_evidence(client):
+    # 답 끝의 승인 기록이 근거(contexts)에도 담긴다: 승인 결정과 실행 결과
+    done = decide(client, ask(client)["thread_id"], "approve")
+    act = [c for c in done["contexts"] if c["doc_id"] == "actions/restart_service/order-worker"]
+    assert len(act) == 1 and "approve" in act[0]["text"] and "실행했다" in act[0]["text"]
+    assert done["contexts"][-1] == act[0]  # 런북·운영 데이터 근거 뒤에 둔다
+    rejected = decide(client, ask(client, "payment-api 재시작해줘")["thread_id"], "reject")
+    assert any(c["doc_id"] == "actions/restart_service/payment-api" and "실행하지 않았다" in c["text"]
+               for c in rejected["contexts"])

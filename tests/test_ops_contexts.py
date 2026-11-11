@@ -36,9 +36,31 @@ def test_status_contexts_single_all_and_missing():
     one = ops_contexts("get_service_status", fake_status_api("payment-api", STATUS_FILE))
     assert [c["doc_id"] for c in one] == ["status/payment-api"]
     assert "8.4" in one[0]["text"] and "1250" in one[0]["text"]  # 에러율·지연 수치가 그대로 담긴다
-    every = ops_contexts("get_service_status", fake_status_api("all", STATUS_FILE))
-    assert {c["doc_id"] for c in every} == {f"status/{s}" for s in json.loads(STATUS_FILE.read_text(encoding="utf-8"))}
+    # 전체 요약은 도구 호출 한 번의 결과라 근거 하나로 담고, 서비스마다 한 줄씩 수치를 그대로 둔다
+    (every,) = ops_contexts("get_service_status", fake_status_api("all", STATUS_FILE))
+    assert every["doc_id"] == "status/all"
+    for svc, info in json.loads(STATUS_FILE.read_text(encoding="utf-8")).items():
+        line = next(l for l in every["text"].splitlines() if l.startswith(f"- {svc}:"))
+        assert str(info["error_rate_pct"]) in line and info["pods_ready"] in line
     assert ops_contexts("get_service_status", fake_status_api("no-such", STATUS_FILE)) == []
+
+
+def test_citing_a_service_found_only_in_the_summary_keeps_the_summary():
+    ctx = [{"doc_id": "runbooks/rb-05.md#chunk-0", "text": "r"}, {"doc_id": "status/all", "text": "s"},
+           {"doc_id": "incidents/INC-1005", "text": "i"}]
+    picked = [c["doc_id"] for c in pick_contexts(ctx, ["runbooks/rb-05.md#chunk-0", "status/payment-api"])]
+    assert picked == ["runbooks/rb-05.md#chunk-0", "status/all"]  # 인용하지 않은 이력은 빠지고 요약은 남는다
+
+
+def test_action_contexts_record_the_human_decision():
+    from src.agent import action_contexts
+    (done,) = action_contexts([{"action": "restart_service", "service": "order-worker", "decision": "approve",
+                               "executed": True, "message": "order-worker 롤링 재시작을 (가짜로) 실행했다"}])
+    assert done["doc_id"] == "actions/restart_service/order-worker"
+    assert "사람에게 승인을 요청" in done["text"] and "approve" in done["text"] and "실행했다" in done["text"]
+    (no,) = action_contexts([{"action": "restart_service", "service": "payment-api", "decision": "reject", "executed": False}])
+    assert "reject" in no["text"] and "실행하지 않았다" in no["text"]
+    assert action_contexts([]) == []
 
 
 def test_pick_keeps_cited_and_falls_back_per_kind():

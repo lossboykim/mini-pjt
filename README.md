@@ -33,7 +33,7 @@ POST /query ─▶ guard ─▶ supervisor ─▶ 전문 에이전트(ReAct) ◀
                 └ 미들웨어: 턴 시작에 저장 이력 마스킹·이력 요약, 모든 모델 호출에 재시도
 응답: answer, contexts[{doc_id,text}], trace[{step,input,output}], status(completed|awaiting_approval), thread_id
 ```
-- contexts에는 최종 답이 인용한 근거를 담는다: 런북 조각(`runbooks/...#chunk-N`), 장애 이력(`incidents/<ID>`), 서비스 상태(`status/<서비스>`). 근거가 없으면 비운다.
+- contexts에는 최종 답이 인용한 근거를 담는다: 런북 조각(`runbooks/...#chunk-N`), 장애 이력(`incidents/<ID>`), 서비스 상태(`status/<서비스>`, 전체 요약은 `status/all` 하나), 사람 승인을 거친 조치 기록(`actions/<조치>/<서비스>`). 근거가 없으면 비운다.
 - 상태·대화 이력은 LangGraph SqliteSaver에 저장한다. 벡터 색인은 커밋하지 않고 `python scripts/build_index.py`로 다시 만든다.
 - 모델: Bedrock `us.anthropic.claude-sonnet-4-5-20250929-v1:0`, 감독자의 경로 선택만 `us.anthropic.claude-haiku-4-5-20251001-v1:0`, 임베딩 `amazon.titan-embed-text-v2:0`(us-east-1).
 - 일일 한도 대체(`src/llm.py`): 처음 모델을 부르기 전에 설정 모델에 출력 1토큰짜리 요청을 보내 한도를 확인하고, 일일 한도를 다 썼으면 후보 목록의 다음 모델로 넘어간다. 실행 중 호출이 `Too many tokens per day`로 실패해도 다음 후보로 바꿔 같은 요청을 다시 보낸다. 후보 순서는 같은 모델의 다른 리전·추론 프로필(Sonnet 4.5: us-east-1 → us-west-2 → global) → Sonnet 4.6 → Haiku 4.5 → Nova Pro다. 에이전트·심사·RAGAS가 모두 따르고, 평가 결과 파일의 `llm` 항목에 실제로 쓴 모델과 대체 기록이 남는다. 임베딩(Titan)은 대체하지 않는다.
@@ -117,13 +117,13 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
 |---|---|---|
 | 구조화 출력 | `src/agent.py:89` | `FinalAnswer` |
 | 인젝션 가드 정규식 | `src/agent.py:80` | `INJECTION_RE` |
-| 운영 데이터 근거(contexts) | `src/agent.py:149` | `ops_contexts` |
-| 인용 근거 선별 | `src/agent.py:173` | `pick_contexts` |
-| 에이전트 클래스 | `src/agent.py:240` | `RunbookAgent` |
-| 승인 대기(HITL) | `src/agent.py:423` | `_approval` |
-| 최종 응답 | `src/agent.py:450` | `_final` |
-| 질의 진입 | `src/agent.py:513` | `query` |
-| 승인 재개 | `src/agent.py:522` | `approve` |
+| 운영 데이터 근거(contexts) | `src/agent.py:160` | `ops_contexts` |
+| 인용 근거 선별 | `src/agent.py:183` | `pick_contexts` |
+| 에이전트 클래스 | `src/agent.py:267` | `RunbookAgent` |
+| 승인 대기(HITL) | `src/agent.py:450` | `_approval` |
+| 최종 응답 | `src/agent.py:477` | `_final` |
+| 질의 진입 | `src/agent.py:542` | `query` |
+| 승인 재개 | `src/agent.py:551` | `approve` |
 | 일일 한도 대체 | `src/llm.py:194` | `FailoverChat` |
 | MCP 세션 재사용 | `src/mcp_server.py:70` | `_SessionWorker` |
 | 쿼리 확장 | `src/retriever.py:143` | `expand_query` |
