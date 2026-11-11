@@ -59,7 +59,8 @@ FINAL_INSTRUCTION = (
     "answer에는 런북에 있는 절차만 쓰고, 비밀값은 쓰지 않는다. "
     "근거로 쓴 런북이 있으면 cited_doc_ids에 doc_id를 넣는다. "
     "런북·장애 이력·서비스 상태 어디에도 근거가 없으면 grounded를 false로 한다. "
-    "조치를 승인 요청했다면 사람의 결정(approve/reject)과 실제 실행 여부를 answer에 밝히고, 거부됐으면 실행하지 않았다고 쓴다."
+    "조치를 승인 요청했다면 실행 전에 사람의 승인을 요청했다는 사실과 사람의 결정(approve/reject), 실제 실행 여부를 "
+    "answer에 밝히고, 거부됐으면 실행하지 않았다고 쓴다."
 )
 
 NO_EVIDENCE_ANSWER = (

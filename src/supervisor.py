@@ -71,7 +71,8 @@ SUPERVISOR_PROMPT = (
     + "\n".join(f"- {w.name}: {w.role}" for w in WORKERS.values())
     + "\n\n규칙:\n"
     "1. 장애 증상이나 절차를 묻는 질의는 runbook_agent부터 맡긴다.\n"
-    "2. 과거 사례나 이력, 현재 상태나 수치를 묻거나 그것이 대응에 필요하면 ops_agent에게 맡긴다.\n"
+    "2. 장애 증상 질의는 runbook_agent가 런북을 찾은 다음 ops_agent에게 과거 사례와 현재 상태 확인을 맡긴다. "
+    "과거 사례나 이력, 현재 상태나 수치만 묻는 질의는 ops_agent에게 바로 맡긴다.\n"
     "3. 사용자가 재시작 같은 조치를 요청한 경우에만 action_agent에게 맡긴다. 그 전에 runbook_agent가 관련 런북을 "
     "찾았어야 한다.\n"
     "4. 필요한 정보가 모였거나, 운영 장애와 무관한 질의이거나, 런북에서 근거를 찾지 못했으면 FINISH를 고른다.\n"

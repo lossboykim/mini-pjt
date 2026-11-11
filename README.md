@@ -85,13 +85,13 @@ faithfulness·answer_relevancy가 낮은 것은 답변에 이력·상태 수치�
 ## 8. 핵심 코드 위치
 | 항목 | 위치 | 심볼 |
 |---|---|---|
-| 구조화 출력 | `src/agent.py:80` | `FinalAnswer` |
-| 인젝션 가드 정규식 | `src/agent.py:71` | `INJECTION_RE` |
-| 에이전트 클래스 | `src/agent.py:142` | `RunbookAgent` |
-| 승인 대기(HITL) | `src/agent.py:318` | `_approval` |
-| 최종 응답 | `src/agent.py:340` | `_final` |
-| 질의 진입 | `src/agent.py:396` | `query` |
-| 승인 재개 | `src/agent.py:405` | `approve` |
+| 구조화 출력 | `src/agent.py:81` | `FinalAnswer` |
+| 인젝션 가드 정규식 | `src/agent.py:72` | `INJECTION_RE` |
+| 에이전트 클래스 | `src/agent.py:143` | `RunbookAgent` |
+| 승인 대기(HITL) | `src/agent.py:319` | `_approval` |
+| 최종 응답 | `src/agent.py:341` | `_final` |
+| 질의 진입 | `src/agent.py:397` | `query` |
+| 승인 재개 | `src/agent.py:406` | `approve` |
 | 쿼리 확장 | `src/retriever.py:143` | `expand_query` |
 | 하이브리드 검색 | `src/retriever.py:156` | `hybrid_search` |
 | 리랭킹 | `src/retriever.py:181` | `rerank` |
