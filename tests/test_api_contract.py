@@ -4,6 +4,7 @@ import sqlite3
 from itertools import combinations
 from pathlib import Path
 
+from src.agent import drop_masked_lines
 from src.retriever import RunbookRetriever, mask_secrets
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -67,8 +68,9 @@ def test_contexts_map_to_real_files_with_masked_text(client):
         f = ROOT / "data" / m.group(1)
         assert f.exists() and f.suffix == ".md"
         chunks = RunbookRetriever.split_chunks(f.read_text(encoding="utf-8"))
-        assert c["text"] == mask_secrets(chunks[int(m.group(2))])
-        assert SECRET not in c["text"]
+        # 조각 원문에서 비밀값을 가리고, 가린 줄은 뺀 것과 같다
+        assert c["text"] == drop_masked_lines(mask_secrets(chunks[int(m.group(2))]))
+        assert SECRET not in c["text"] and "[REDACTED]" not in c["text"]
 
 
 def test_fake_secrets_planted_and_never_returned(client, llm):

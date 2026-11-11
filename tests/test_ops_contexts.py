@@ -20,6 +20,18 @@ def test_incidents_become_one_context_each_with_masked_text():
         assert SECRET not in c["text"]
 
 
+def test_masked_secret_lines_are_left_out_of_contexts():
+    # INC-1005 메모와 RB-05 진단 절차에는 비밀값이 심어져 있다. 가린 자리([REDACTED])도 contexts에 남기지 않는다.
+    inc = [i for i in query_incidents("payment-api DB 연결 타임아웃 커넥션 풀", INCIDENTS_DB) if i["id"] == "INC-1005"]
+    assert inc and "[REDACTED]" in inc[0]["notes"]  # 도구 결과(에이전트가 보는 것)에는 가린 값이 그대로 있다
+    (ctx,) = ops_contexts("search_incidents", {"incidents": inc})
+    assert "[REDACTED]" not in ctx["text"] and "DB_PASSWORD" not in ctx["text"]
+    assert inc[0]["root_cause"] in ctx["text"]  # 다른 줄은 그대로 남는다
+    doc = {"doc_id": "runbooks/rb-05.md#chunk-0", "text": "1. 첫 단계\n3. 계정 DB_PASSWORD=[REDACTED] 사용\n4. 다음 단계"}
+    (rb,) = ops_contexts("retrieve_runbook", {"documents": [doc]})
+    assert rb["text"] == "1. 첫 단계\n4. 다음 단계"
+
+
 def test_status_contexts_single_all_and_missing():
     one = ops_contexts("get_service_status", fake_status_api("payment-api", STATUS_FILE))
     assert [c["doc_id"] for c in one] == ["status/payment-api"]

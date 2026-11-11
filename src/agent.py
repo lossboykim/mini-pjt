@@ -135,20 +135,26 @@ def _status_text(service: str, info: dict) -> str:
     return "\n".join(lines)
 
 
+def drop_masked_lines(text: str) -> str:
+    """가린 비밀값([REDACTED])이 있는 줄을 뺀다. 비밀값 자리는 근거로 쓸 내용이 아니고, 응답에 남기면 민감 정보 참조로 읽힌다."""
+    return "\n".join(line for line in text.splitlines() if REDACTED not in line)
+
+
 def ops_contexts(tool_name: str, result: dict) -> list[dict]:
     """도구 결과를 contexts 항목({doc_id, text})으로 바꾼다.
 
     런북은 조각 doc_id(runbooks/...#chunk-N), 장애 이력은 incidents/<ID>, 서비스 상태는 status/<서비스>를 쓴다.
     전체 상태 요약(service="all")은 서비스마다 한 항목으로 나눈다. 찾지 못한 서비스는 근거가 아니므로 넣지 않는다.
+    어느 종류든 가린 비밀값이 있는 줄은 contexts에 넣지 않는다(에이전트가 받는 도구 결과는 그대로 둔다).
     """
     if tool_name == "retrieve_runbook":
-        return [{"doc_id": d["doc_id"], "text": d["text"]} for d in result.get("documents", [])]
+        return [{"doc_id": d["doc_id"], "text": drop_masked_lines(d["text"])} for d in result.get("documents", [])]
     if tool_name == "search_incidents":
         out = []
         for inc in result.get("incidents", []):
             lines = [f"[장애 이력] {inc.get('id', '')}"]
             lines += [f"{label}: {inc[key]}" for key, label in INCIDENT_FIELDS if inc.get(key) not in (None, "")]
-            out.append({"doc_id": INCIDENT_PREFIX + str(inc.get("id", "")), "text": "\n".join(lines)})
+            out.append({"doc_id": INCIDENT_PREFIX + str(inc.get("id", "")), "text": drop_masked_lines("\n".join(lines))})
         return out
     if tool_name == "get_service_status" and result.get("found"):
         if result.get("service") == "all":

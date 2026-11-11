@@ -104,13 +104,13 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
 |---|---|---|
 | 구조화 출력 | `src/agent.py:84` | `FinalAnswer` |
 | 인젝션 가드 정규식 | `src/agent.py:75` | `INJECTION_RE` |
-| 운영 데이터 근거(contexts) | `src/agent.py:138` | `ops_contexts` |
-| 인용 근거 선별 | `src/agent.py:161` | `pick_contexts` |
-| 에이전트 클래스 | `src/agent.py:198` | `RunbookAgent` |
-| 승인 대기(HITL) | `src/agent.py:375` | `_approval` |
-| 최종 응답 | `src/agent.py:399` | `_final` |
-| 질의 진입 | `src/agent.py:461` | `query` |
-| 승인 재개 | `src/agent.py:470` | `approve` |
+| 운영 데이터 근거(contexts) | `src/agent.py:143` | `ops_contexts` |
+| 인용 근거 선별 | `src/agent.py:167` | `pick_contexts` |
+| 에이전트 클래스 | `src/agent.py:204` | `RunbookAgent` |
+| 승인 대기(HITL) | `src/agent.py:381` | `_approval` |
+| 최종 응답 | `src/agent.py:405` | `_final` |
+| 질의 진입 | `src/agent.py:467` | `query` |
+| 승인 재개 | `src/agent.py:476` | `approve` |
 | MCP 세션 재사용 | `src/mcp_server.py:70` | `_SessionWorker` |
 | 쿼리 확장 | `src/retriever.py:143` | `expand_query` |
 | 하이브리드 검색 | `src/retriever.py:156` | `hybrid_search` |
