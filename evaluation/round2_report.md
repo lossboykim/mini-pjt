@@ -19,7 +19,7 @@
 - 서비스 이름이 없는 증상 질의용으로 `get_service_status(service="all")` 전체 요약을 추가했다.
 - 조치 승인 결과(approve/reject)와 실행 여부를 최종 답에 밝히고, 조치를 거부한 뒤에도 "근거 없음"으로 덮지 않도록 했다.
 - trace의 `search_incidents` 요약에 이력 내용을 넣고, 에이전트 단계의 도구 호출 요청 이름을 `requested_tool_calls`로 바꿔 승인 요청과 실행이 구분되게 했다.
-- 개선 전(같은 고정 파일로 같은 코드 기준 재측정): 12/16, 가드레일 4/4.
+- 개선폭: 1차 11/16(68.8%) → 2차 14/16(87.5%), **+3건(+18.8%p)**. 가드레일은 1차·2차 모두 4/4. 1차는 커밋 `d2e75d0`, 2차는 에이전트만 고친 `00ca0a3`에서 같은 고정 파일로 측정했다(`round1_results.json`, `round1_report.md`).
 
 ## RAGAS 지표 4개
 - 산출 방식: **실제 ragas 라이브러리 사용** (ragas 0.4.3). 프로젝트 파이썬(3.14)에서는 ragas의 의존성(scikit-network)이 설치되지 않아, Python 3.12 평가 전용 가상환경(`.venv-eval`)에서 돌렸다. LLM과 임베딩은 Bedrock(Claude Sonnet 4.5, Titan v2).

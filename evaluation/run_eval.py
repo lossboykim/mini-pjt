@@ -26,7 +26,8 @@ ENV_PATHS = [ROOT / ".env", Path(r"C:\Users\Admin\Desktop\mini-pjt\.env")]
 
 
 def sha256(rel: str) -> str:
-    return hashlib.sha256((ROOT / rel).read_bytes()).hexdigest()
+    data = (ROOT / rel).read_bytes().replace(bytes([13, 10]), bytes([10]))  # 줄바꿈 차이에 영향받지 않게 정규화
+    return hashlib.sha256(data).hexdigest()
 
 
 def git(*args) -> str:
