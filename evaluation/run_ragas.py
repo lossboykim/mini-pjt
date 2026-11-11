@@ -6,11 +6,13 @@ LLM·임베딩은 Bedrock(Claude Sonnet 4.5, Titan v2)을 LangChain 래퍼로 �
 import argparse
 import json
 import math
+import sys
 import warnings
 from pathlib import Path
 
 warnings.filterwarnings("ignore")
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
 ENV = Path(r"C:\Users\Admin\Desktop\mini-pjt\.env")
 
 
@@ -22,7 +24,8 @@ def main():
     tag = f"{a.round}_run{a.run}" if a.run else str(a.round)
     from dotenv import load_dotenv
     load_dotenv(ENV)
-    from langchain_aws import BedrockEmbeddings, ChatBedrockConverse
+    from langchain_aws import BedrockEmbeddings
+    from src.llm import FailoverChat, chains_status, get_chain
     from ragas import EvaluationDataset, evaluate
     from ragas.embeddings import LangchainEmbeddingsWrapper
     from ragas.llms import LangchainLLMWrapper
@@ -35,8 +38,8 @@ def main():
     ds = EvaluationDataset.from_list([{
         "user_input": r["question"], "response": r["answer"],
         "retrieved_contexts": r["contexts"], "reference": refs[r["id"]]} for r in rows])
-    llm = LangchainLLMWrapper(ChatBedrockConverse(
-        model="us.anthropic.claude-sonnet-4-5-20250929-v1:0", region_name="us-east-1", temperature=0, max_tokens=4096))
+    # 심사 모델도 에이전트와 같은 후보 사슬을 쓴다: 실행 전 한도 확인, 일일 한도에 걸리면 다음 후보로 대체
+    llm = LangchainLLMWrapper(FailoverChat(chain=get_chain("main"), max_tokens=4096))
     emb = LangchainEmbeddingsWrapper(BedrockEmbeddings(model_id="amazon.titan-embed-text-v2:0", region_name="us-east-1"))
     res = evaluate(ds, metrics=[context_recall, context_precision, faithfulness, answer_relevancy],
                    llm=llm, embeddings=emb, show_progress=False)
@@ -50,7 +53,7 @@ def main():
         vals = [c[n] for c in per_case if c[n] is not None]
         mean[n] = sum(vals) / len(vals) if vals else None
     out = {"round": a.round, "run": a.run or None, "implementation": "ragas", "ragas_version": ragas.__version__,
-           "python": "3.12 (.venv-eval)", "cases_scored": [r["id"] for r in rows], "mean": mean, "per_case": per_case}
+           "python": "3.12 (.venv-eval)", "llm": chains_status(), "cases_scored": [r["id"] for r in rows], "mean": mean, "per_case": per_case}
     (ROOT / f"evaluation/ragas_round{tag}.json").write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(mean, ensure_ascii=False))
 

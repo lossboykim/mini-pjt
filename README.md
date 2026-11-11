@@ -36,6 +36,7 @@ POST /query ─▶ guard ─▶ supervisor ─▶ 전문 에이전트(ReAct) ◀
 - contexts에는 최종 답이 인용한 근거를 담는다: 런북 조각(`runbooks/...#chunk-N`), 장애 이력(`incidents/<ID>`), 서비스 상태(`status/<서비스>`). 근거가 없으면 비운다.
 - 상태·대화 이력은 LangGraph SqliteSaver에 저장한다. 벡터 색인은 커밋하지 않고 `python scripts/build_index.py`로 다시 만든다.
 - 모델: Bedrock `us.anthropic.claude-sonnet-4-5-20250929-v1:0`, 감독자의 경로 선택만 `us.anthropic.claude-haiku-4-5-20251001-v1:0`, 임베딩 `amazon.titan-embed-text-v2:0`(us-east-1).
+- 일일 한도 대체(`src/llm.py`): 처음 모델을 부르기 전에 설정 모델에 출력 1토큰짜리 요청을 보내 한도를 확인하고, 일일 한도를 다 썼으면 후보 목록의 다음 모델로 넘어간다. 실행 중 호출이 `Too many tokens per day`로 실패해도 다음 후보로 바꿔 같은 요청을 다시 보낸다. 후보 순서는 같은 모델의 다른 리전·추론 프로필(Sonnet 4.5: us-east-1 → us-west-2 → global) → Sonnet 4.6 → Haiku 4.5 → Nova Pro다. 에이전트·심사·RAGAS가 모두 따르고, 평가 결과 파일의 `llm` 항목에 실제로 쓴 모델과 대체 기록이 남는다. 임베딩(Titan)은 대체하지 않는다.
 
 ## 4. 실행 방법
 ```
@@ -43,6 +44,7 @@ pip install -r requirements.txt
 # .env(커밋하지 않음)에 AWS 자격 증명, 선택으로 LANGSMITH_TRACING/LANGSMITH_API_KEY 설정
 python scripts/build_incidents_db.py   # 장애 이력 DB 재생성(data/incidents.db는 커밋돼 있음)
 python scripts/build_index.py          # 벡터 색인 생성
+python scripts/check_bedrock.py        # 실행 전 모델별 한도 점검(쓸 모델이 없으면 종료 코드 1)
 uvicorn src.server:app --port 8000
 curl -X POST localhost:8000/query -H "Content-Type: application/json" -d '{"question": "payment-api가 CrashLoopBackOff야"}'
 curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"thread_id": "<id>", "decision": "approve"}'
@@ -101,22 +103,23 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
 - contexts 확장 뒤 장애 이력 메모의 가린 비밀값 자리(`DB_PASSWORD=[REDACTED]`)를 심사 모델이 민감 정보 참조로 감점했다(6차 2회 E02). 7차 전에 가린 값이 있는 줄을 contexts에서 뺐다. 런북 RB-05 조각의 같은 줄도 함께 뺐다.
 - P04에서 승인 뒤 답에 승인 요청 사실이 빠지는 경우가 6차·7차 여섯 번 중 두 번 있었다. 승인 기록(요청한 조치, 사람의 결정, 실행 여부)을 상태에 남기고 최종 답 끝에 코드로 붙이게 했다(`approval_record`). 무승인 조치 금지처럼 모델 판단에 맡기지 않는다.
 - 질의 한 건이 50~80초 걸렸다. 모델 호출별로 재 보니 전문 에이전트가 도구 결과를 받은 뒤 쓰는 정리 글이 가장 컸다(호출 2번에 약 20초, 최대 900토큰). 이 글은 감독자에게 앞 300자만 넘어간다. 전문 에이전트는 두 문장 이내로 보고하고 출력을 400토큰으로 제한했고, 감독자의 경로 선택은 Haiku 4.5로 바꿨다. Haiku 감독자가 같은 담당을 다시 불러 호출이 16번까지 늘어서, 한 질의에서 담당마다 한 번만 일하게 했다. 바꾸기 전 코드(`344b3c3`)와 번갈아 2회씩 재니 평균 69.7초에서 47.7초로 줄었다(질의별 -18%~-37%). Bedrock 응답 시간 자체가 같은 호출에서도 3초에서 18초까지 흔들려 1회 측정으로는 비교하기 어려웠다.
-- 위 두 변경(`06a832e`)의 전체 평가(8차)는 Bedrock Sonnet의 일일 토큰 한도에 걸려 멈췄다(세 번 모두 2~3건째). 한도가 풀리면 `python evaluation/run_eval.py --round 8 --run K`(K=1,2,3)로 다시 재야 한다.
+- 위 두 변경(`06a832e`)의 전체 평가(8차)는 Bedrock Sonnet의 일일 토큰 한도에 걸려 멈췄다(세 번 모두 2~3건째). 이 일로 일일 한도 대체를 넣었다. Bedrock에는 남은 일일 토큰을 알려 주는 API가 없고 이 계정은 Service Quotas 조회 권한도 없어서, 출력 1토큰짜리 요청으로 확인한다. 한도는 조금씩 다시 차서 작은 확인 요청은 통과하고 큰 요청이 막힐 수 있으므로(실제로 한 시간 뒤 확인 요청은 통과했다), 실행 중 오류에서도 바꾸게 했다. 후보마다 모델 객체를 따로 만드는 것은 도구 형식과 `tool_choice` 지원이 제공자마다 달라 만든 뒤 모델 ID만 바꾸면 어긋나기 때문이다. Sonnet 4.6, Haiku 4.5, Nova Pro가 도구 호출과 두 구조화 출력(`FinalAnswer`, `Route`)을 처리하는 것은 실제 호출로 확인했고, `gpt-oss`는 확인하지 않아 후보에서 뺐다. 8차는 `python evaluation/run_eval.py --round 8 --run K`(K=1,2,3)로 다시 재야 한다.
 - 남은 한계: 전체 상태 요약을 인용하면 contexts가 늘어 context_precision이 내려간다. 8차 재측정 전까지는 위 변경이 통과율에 주는 영향을 모른다.
 - requirements.txt에서 주석 줄에 붙어 있던 langgraph-checkpoint-sqlite를 분리하고 누락 패키지를 보충했다.
 
 ## 8. 핵심 코드 위치
 | 항목 | 위치 | 심볼 |
 |---|---|---|
-| 구조화 출력 | `src/agent.py:87` | `FinalAnswer` |
-| 인젝션 가드 정규식 | `src/agent.py:78` | `INJECTION_RE` |
-| 운영 데이터 근거(contexts) | `src/agent.py:147` | `ops_contexts` |
-| 인용 근거 선별 | `src/agent.py:171` | `pick_contexts` |
-| 에이전트 클래스 | `src/agent.py:238` | `RunbookAgent` |
-| 승인 대기(HITL) | `src/agent.py:421` | `_approval` |
-| 최종 응답 | `src/agent.py:448` | `_final` |
-| 질의 진입 | `src/agent.py:511` | `query` |
-| 승인 재개 | `src/agent.py:520` | `approve` |
+| 구조화 출력 | `src/agent.py:89` | `FinalAnswer` |
+| 인젝션 가드 정규식 | `src/agent.py:80` | `INJECTION_RE` |
+| 운영 데이터 근거(contexts) | `src/agent.py:149` | `ops_contexts` |
+| 인용 근거 선별 | `src/agent.py:173` | `pick_contexts` |
+| 에이전트 클래스 | `src/agent.py:240` | `RunbookAgent` |
+| 승인 대기(HITL) | `src/agent.py:423` | `_approval` |
+| 최종 응답 | `src/agent.py:450` | `_final` |
+| 질의 진입 | `src/agent.py:513` | `query` |
+| 승인 재개 | `src/agent.py:522` | `approve` |
+| 일일 한도 대체 | `src/llm.py:194` | `FailoverChat` |
 | MCP 세션 재사용 | `src/mcp_server.py:70` | `_SessionWorker` |
 | 쿼리 확장 | `src/retriever.py:143` | `expand_query` |
 | 하이브리드 검색 | `src/retriever.py:156` | `hybrid_search` |

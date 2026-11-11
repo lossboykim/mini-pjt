@@ -81,6 +81,7 @@ def main():
     a = ap.parse_args()
     load_env()
     from src.agent import RunbookAgent, default_llm
+    from src.llm import chains_status
 
     cases = rubric.load_cases()
     only = {x for x in a.only.split(",") if x}
@@ -113,6 +114,7 @@ def main():
         "run": a.run or None,
         "measured_commit": git("rev-parse", "HEAD"),
         "worktree_dirty_paths": git("status", "--porcelain", "--", "src", "data", "scripts").splitlines(),
+        "llm": chains_status(),  # 역할별 실제로 쓴 모델과 한도 확인·대체 기록
         "frozen_file_hashes": {p: git("rev-parse", "HEAD:" + p) for p in FROZEN},  # git blob 해시
         "summary": summary,
         "cases": [{"id": cid, "judged_by": v["judged_by"], "passed": v["passed"], "category": v["category"],

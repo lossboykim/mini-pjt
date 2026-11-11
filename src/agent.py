@@ -28,6 +28,7 @@ from langgraph.graph.message import add_messages
 from langgraph.types import Command, interrupt
 from pydantic import BaseModel, Field
 
+from src.llm import MAIN_CANDIDATES, ROUTER_CANDIDATES, FailoverChat, get_chain
 from src.mcp_server import SERVER_NAME as MCP_SERVER_NAME, OpsMcpClient
 from src.middleware import build_middleware, masked_tracing
 from src.retriever import DEFAULT_INDEX_DIR, REDACTED, ROOT, RunbookRetriever, mask_secrets
@@ -35,9 +36,10 @@ from src.supervisor import FINISH, WORKERS, choose_next, worker_system_prompt, w
 from src.tools import (ACTION_TOOLS, INCIDENTS_DB, READ_TOOLS, STATUS_FILE, ActionLog,
                        execute_restart, make_tools)
 
-MODEL_ID = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
-# 감독자의 경로 선택(Route)은 짧은 분류라 빠른 모델로 충분하다(호출당 약 3.2초 → 1.2초).
-ROUTER_MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+# 모델은 src/llm.py의 후보 목록 첫 항목이 설정값이다. 일일 한도에 걸리면 다음 후보로 자동으로 넘어간다.
+# 감독자의 경로 선택(Route)은 짧은 분류라 빠른 모델(Haiku 4.5)을 먼저 쓴다(호출당 약 3.2초 → 1.2초).
+MODEL_ID = MAIN_CANDIDATES[0].model_id
+ROUTER_MODEL_ID = ROUTER_CANDIDATES[0].model_id
 EMBED_MODEL_ID = "amazon.titan-embed-text-v2:0"
 REGION = "us-east-1"
 MAX_AGENT_STEPS = 6
@@ -214,18 +216,18 @@ def _scrub(value: Any) -> Any:
     return value
 
 
-def default_llm():
+def default_llm(max_tokens=None):
+    """답을 쓰는 모델. 처음 부를 때 한도를 확인하고, 일일 한도에 걸리면 다음 후보 모델로 바꾼다."""
     from dotenv import load_dotenv
-    from langchain_aws import ChatBedrockConverse
     load_dotenv()
-    return ChatBedrockConverse(model=MODEL_ID, region_name=REGION, temperature=0)
+    return FailoverChat(chain=get_chain("main"), max_tokens=max_tokens)
 
 
 def default_router_llm():
+    """감독자의 경로 선택 모델. 한도 처리는 default_llm과 같다."""
     from dotenv import load_dotenv
-    from langchain_aws import ChatBedrockConverse
     load_dotenv()
-    return ChatBedrockConverse(model=ROUTER_MODEL_ID, region_name=REGION, temperature=0)
+    return FailoverChat(chain=get_chain("router"))
 
 
 def default_embeddings():
