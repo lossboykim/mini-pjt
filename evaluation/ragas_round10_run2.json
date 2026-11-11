@@ -1,0 +1,114 @@
+{
+  "round": 10,
+  "run": 2,
+  "implementation": "ragas",
+  "ragas_version": "0.4.3",
+  "python": "3.12 (.venv-eval)",
+  "llm": {
+    "main": {
+      "role": "main",
+      "current": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-west-2",
+      "checked": true,
+      "configured": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-east-1",
+      "events": [
+        {
+          "time": "2026-11-11T17:23:48+0900",
+          "role": "main",
+          "event": "probe:ok",
+          "model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-east-1"
+        },
+        {
+          "time": "2026-11-11T17:23:48+0900",
+          "role": "main",
+          "event": "selected",
+          "model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-east-1"
+        },
+        {
+          "time": "2026-11-11T17:23:50+0900",
+          "role": "main",
+          "event": "daily_quota_during_call",
+          "model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-east-1",
+          "detail": "An error occurred (ThrottlingException) when calling the Converse operation (reached max retries: 2): Too many tokens per day, please wait before trying again."
+        },
+        {
+          "time": "2026-11-11T17:23:52+0900",
+          "role": "main",
+          "event": "probe:ok",
+          "model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-west-2"
+        },
+        {
+          "time": "2026-11-11T17:23:52+0900",
+          "role": "main",
+          "event": "selected",
+          "model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-west-2"
+        }
+      ]
+    }
+  },
+  "cases_scored": [
+    "P01",
+    "P02",
+    "P03",
+    "P04",
+    "P05",
+    "E02",
+    "E04"
+  ],
+  "mean": {
+    "context_recall": 1.0,
+    "context_precision": 0.8059523809116369,
+    "faithfulness": 0.8658702905445727,
+    "answer_relevancy": 0.6397906381334997
+  },
+  "per_case": [
+    {
+      "id": "P01",
+      "context_recall": 1.0,
+      "context_precision": 0.9999999999666667,
+      "faithfulness": 0.8695652173913043,
+      "answer_relevancy": 0.6061591938160616
+    },
+    {
+      "id": "P02",
+      "context_recall": 1.0,
+      "context_precision": 0.8041666666465626,
+      "faithfulness": 0.5833333333333334,
+      "answer_relevancy": 0.8403717984434916
+    },
+    {
+      "id": "P03",
+      "context_recall": 1.0,
+      "context_precision": 0.8041666666465626,
+      "faithfulness": 0.9375,
+      "answer_relevancy": 0.6101721487433299
+    },
+    {
+      "id": "P04",
+      "context_recall": 1.0,
+      "context_precision": 0.99999999995,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.42465862617201067
+    },
+    {
+      "id": "P05",
+      "context_recall": 1.0,
+      "context_precision": 0.9999999999,
+      "faithfulness": 0.9473684210526315,
+      "answer_relevancy": 0.7542908809467525
+    },
+    {
+      "id": "E02",
+      "context_recall": 1.0,
+      "context_precision": 0.19999999998,
+      "faithfulness": 0.8387096774193549,
+      "answer_relevancy": 0.41919739349932356
+    },
+    {
+      "id": "E04",
+      "context_recall": 1.0,
+      "context_precision": 0.8333333332916666,
+      "faithfulness": 0.8846153846153846,
+      "answer_relevancy": 0.8236844253135281
+    }
+  ]
+}
