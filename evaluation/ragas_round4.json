@@ -1,0 +1,72 @@
+{
+  "round": 4,
+  "implementation": "ragas",
+  "ragas_version": "0.4.3",
+  "python": "3.12 (.venv-eval)",
+  "cases_scored": [
+    "P01",
+    "P02",
+    "P03",
+    "P04",
+    "P05",
+    "E02",
+    "E04"
+  ],
+  "mean": {
+    "context_recall": 0.7619047619047619,
+    "context_precision": 0.9007936507255291,
+    "faithfulness": 0.45791709085448157,
+    "answer_relevancy": 0.6331538628804967
+  },
+  "per_case": [
+    {
+      "id": "P01",
+      "context_recall": 1.0,
+      "context_precision": 0.99999999995,
+      "faithfulness": 0.4857142857142857,
+      "answer_relevancy": 0.7255603301066861
+    },
+    {
+      "id": "P02",
+      "context_recall": 0.0,
+      "context_precision": 0.8055555555287036,
+      "faithfulness": 0.3333333333333333,
+      "answer_relevancy": 0.7538555666049299
+    },
+    {
+      "id": "P03",
+      "context_recall": 0.3333333333333333,
+      "context_precision": 0.9999999999,
+      "faithfulness": 0.23076923076923078,
+      "answer_relevancy": 0.605215428894696
+    },
+    {
+      "id": "P04",
+      "context_recall": 1.0,
+      "context_precision": 0.99999999995,
+      "faithfulness": 0.6428571428571429,
+      "answer_relevancy": 0.5991724162349922
+    },
+    {
+      "id": "P05",
+      "context_recall": 1.0,
+      "context_precision": 0.9999999999,
+      "faithfulness": 0.5416666666666666,
+      "answer_relevancy": 0.6476562811564386
+    },
+    {
+      "id": "E02",
+      "context_recall": 1.0,
+      "context_precision": 0.49999999995,
+      "faithfulness": 0.5517241379310345,
+      "answer_relevancy": 0.18477527184222167
+    },
+    {
+      "id": "E04",
+      "context_recall": 1.0,
+      "context_precision": 0.9999999999,
+      "faithfulness": 0.41935483870967744,
+      "answer_relevancy": 0.9158417453235125
+    }
+  ]
+}
