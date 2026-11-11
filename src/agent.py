@@ -214,6 +214,8 @@ class RunbookAgent:
                 trace.append(_step(f"tool:{name}", args, {"error": str(e)}))
                 continue
             if name == "retrieve_runbook":
+                for st in result.pop("retrieval_trace", []):
+                    trace.append(_step(st["step"], st["input"], st["output"]))
                 for d in result["documents"]:
                     if all(c["doc_id"] != d["doc_id"] for c in contexts):
                         contexts.append({"doc_id": d["doc_id"], "text": d["text"]})
@@ -260,9 +262,11 @@ class RunbookAgent:
         if grounded:
             picked = [c for c in contexts if c["doc_id"] in res.evidence_doc_ids]
             trace.append(_step("final_answer", "structured_output",
-                               {"grounded": True, "evidence_doc_ids": [c["doc_id"] for c in (picked or contexts)]}))
+                               {**res.model_dump(), "grounded": True,
+                                "evidence_doc_ids": [c["doc_id"] for c in (picked or contexts)]}))
             return {"answer": res.answer, "contexts": picked or contexts, "trace": trace}
-        trace.append(_step("final_answer", "structured_output", {"grounded": False, "evidence_doc_ids": []}))
+        trace.append(_step("final_answer", "structured_output", {**res.model_dump(), "answer": NO_EVIDENCE_ANSWER, "grounded": False,
+                                                                   "evidence_doc_ids": []}))
         trace.append(_step("no_evidence", "grounded=false", "런북에 근거 없음: contexts 비움, 절차 미생성"))
         return {"answer": NO_EVIDENCE_ANSWER, "contexts": [], "trace": trace}
 

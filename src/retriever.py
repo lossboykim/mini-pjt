@@ -164,8 +164,21 @@ class RunbookRetriever:
         kept.sort(key=lambda d: -d.score)
         return kept[: self.top_k]
 
-    def retrieve(self, query: str) -> list[Doc]:
+    def retrieve_traced(self, query: str) -> tuple[list[Doc], list[dict]]:
+        """검색 결과와 단계별 기록(쿼리 확장, BM25+벡터 결합, 리랭킹)을 함께 돌려준다."""
         if self._bm25 is None:
             self.load()
         queries = self.expand_query(query)
-        return self.rerank(query, self.hybrid_search(queries))
+        cands = self.hybrid_search(queries)
+        docs = self.rerank(query, cands)
+        steps = [
+            {"step": "query_expansion", "input": query, "output": {"queries": queries}},
+            {"step": "hybrid_search", "input": {"queries": queries, "methods": ["bm25", "vector"], "fusion": "rrf"},
+             "output": {"candidates": [d.doc_id for d in cands]}},
+            {"step": "rerank", "input": {"candidates": [d.doc_id for d in cands]},
+             "output": {"kept": [{"doc_id": d.doc_id, "score": d.score} for d in docs]}},
+        ]
+        return docs, steps
+
+    def retrieve(self, query: str) -> list[Doc]:
+        return self.retrieve_traced(query)[0]

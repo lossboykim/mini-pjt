@@ -93,8 +93,8 @@ def make_tools(retriever, incidents_db: Path = INCIDENTS_DB, status_file: Path =
     @tool
     def retrieve_runbook(query: str) -> dict:
         """장애 증상으로 운영 런북을 검색한다. 증상, 진단 절차, 조치 절차를 돌려준다."""
-        docs = retriever.retrieve(query)
-        return {"documents": [{"doc_id": d.doc_id, "text": d.text} for d in docs]}
+        docs, steps = retriever.retrieve_traced(query)
+        return {"documents": [{"doc_id": d.doc_id, "text": d.text} for d in docs], "retrieval_trace": steps}
 
     @tool
     def search_incidents(query: str) -> dict:

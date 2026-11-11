@@ -1,0 +1,17 @@
+# 에이전트·서버 (src/)
+langchain-core
+langchain-aws
+langgraph
+langgraph-checkpoint-sqlite
+pydantic
+fastapi
+uvicorn
+rank-bm25
+numpy
+boto3
+python-dotenv
+langsmith
+# 평가·테스트 (evaluation/, tests/)
+pytest
+httpx
+# ragas는 프로젝트 파이썬(3.14)에서 설치되지 않아 evaluation/requirements-eval.txt(Python 3.12 평가 전용 venv)에 적는다.
