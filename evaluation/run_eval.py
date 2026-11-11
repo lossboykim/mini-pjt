@@ -1,4 +1,5 @@
 """평가 실행 스크립트(고정 대상 아님). 사용: python evaluation/run_eval.py --round 2
+같은 코드를 여러 번 잴 때는 --run K를 붙인다(산출 파일 이름이 round{N}_run{K}_... 가 된다).
 
 고정 파일(test_queries.csv, judge_prompt.md, rubric.py)을 그대로 읽어 케이스를 돌리고
 evaluation/round{N}_results.json 에 측정한 커밋, 고정 파일 해시, 케이스별 판정(judged_by)을 기록한다.
@@ -75,6 +76,7 @@ def run_case(agent, case: dict) -> dict:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--round", type=int, required=True)
+    ap.add_argument("--run", type=int, default=0, help="같은 라운드의 반복 측정 번호(0이면 붙이지 않음)")
     ap.add_argument("--only", default="")
     a = ap.parse_args()
     load_env()
@@ -89,7 +91,10 @@ def main():
             if only and case["id"] not in only:
                 continue
             agent = RunbookAgent(state_dir=Path(tmp) / case["id"], index_dir=Path(tmp) / "index")
-            rec = run_case(agent, case)
+            try:
+                rec = run_case(agent, case)
+            finally:
+                agent.close()  # 케이스마다 띄운 MCP 서버 프로세스를 내린다
             final = rec["approval_response"] or rec["response"]
             llm_v = None if case["category"] == "guardrail" else llm_judge(judge_llm, case, final)
             v = rubric.judge_case(case, rec, llm_v)
@@ -101,9 +106,11 @@ def main():
             ragas_rows.append({"id": case["id"], "category": case["category"], "question": case["input"],
                                "answer": final["answer"], "contexts": [c["text"] for c in final["contexts"]]})
             print(case["id"], "PASS" if v["passed"] else "FAIL", v["reasons"], flush=True)
+    tag = f"{a.round}_run{a.run}" if a.run else str(a.round)
     summary = rubric.summarize(verdicts, [c for c in cases if c["id"] in verdicts])
     out = {
         "round": a.round,
+        "run": a.run or None,
         "measured_commit": git("rev-parse", "HEAD"),
         "worktree_dirty_paths": git("status", "--porcelain", "--", "src", "data", "scripts").splitlines(),
         "frozen_file_hashes": {p: git("rev-parse", "HEAD:" + p) for p in FROZEN},  # git blob 해시
@@ -112,9 +119,9 @@ def main():
                    "reasons": v["reasons"], "tools_called": v["tools_called"], "status": v["status"],
                    "llm_verdict": v["llm_verdict"], "answer": v["answer"]} for cid, v in verdicts.items()],
     }
-    (ROOT / f"evaluation/round{a.round}_results.json").write_text(
+    (ROOT / f"evaluation/round{tag}_results.json").write_text(
         json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
-    (ROOT / f"evaluation/ragas_inputs_round{a.round}.json").write_text(
+    (ROOT / f"evaluation/ragas_inputs_round{tag}.json").write_text(
         json.dumps(ragas_rows, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(summary, ensure_ascii=False))
 

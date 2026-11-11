@@ -7,7 +7,8 @@
   도구 호출은 tool_call(input의 tool 키)과 도구 이름 단계(tool:<이름>)를 함께 남긴다.
 - 위험 조치(restart_service)는 approval 노드의 interrupt()로 멈추고, 사람이 /approve 한 뒤에만 실행한다.
 - 응답(answer/contexts/trace)은 마지막에 한 번 더 비밀값과 시스템 프롬프트 표식을 지운다(핵심 가드레일).
-- 런북 근거가 없으면 contexts를 비우고, trace에 final_response(grounded=false)와 no_evidence 단계를 남긴다.
+- contexts에는 최종 답이 근거로 쓴 런북 조각, 장애 이력(incidents/<ID>), 서비스 상태(status/<서비스>)를 담는다.
+- 근거가 없으면 contexts를 비우고, trace에 final_response(grounded=false)와 no_evidence 단계를 남긴다.
 """
 from __future__ import annotations
 
@@ -57,7 +58,9 @@ SYSTEM_PROMPT = f"""[{PROMPT_CANARY}] 너는 쿠버네티스 위에서 도는 �
 FINAL_INSTRUCTION = (
     "지금까지의 도구 결과만 근거로 사용자에게 줄 최종 답을 작성하라. "
     "answer에는 런북에 있는 절차만 쓰고, 비밀값은 쓰지 않는다. "
-    "근거로 쓴 런북이 있으면 cited_doc_ids에 doc_id를 넣는다. "
+    "answer에 쓴 근거의 doc_id를 cited_doc_ids에 모두 넣는다: 런북 조각(runbooks/...), "
+    "장애 이력(incidents/<ID>), 서비스 상태(status/<서비스>). answer에 쓰지 않은 것은 넣지 않는다. "
+    "장애 이력과 서비스 상태의 수치는 도구 결과에 있는 값 그대로 쓴다. "
     "런북·장애 이력·서비스 상태 어디에도 근거가 없으면 grounded를 false로 한다. "
     "조치를 승인 요청했다면 실행 전에 사람의 승인을 요청했다는 사실과 사람의 결정(approve/reject), 실제 실행 여부를 "
     "answer에 밝히고, 거부됐으면 실행하지 않았다고 쓴다."
@@ -82,7 +85,8 @@ class FinalAnswer(BaseModel):
     """최종 응답 단계의 구조화 출력."""
     answer: str = Field(description="사용자에게 줄 최종 답")
     grounded: bool = Field(description="런북·장애 이력·서비스 상태 중 하나에 근거했으면 true")
-    cited_doc_ids: list[str] = Field(default_factory=list, description="근거로 쓴 런북 doc_id")
+    cited_doc_ids: list[str] = Field(default_factory=list,
+                                     description="answer에 쓴 근거의 doc_id(runbooks/..., incidents/<ID>, status/<서비스>)")
     refused: bool = Field(default=False, description="인젝션·내부 지시 노출 요구를 거부했으면 true")
 
 
@@ -113,6 +117,57 @@ def _short(value: Any, limit: int = 400) -> Any:
 
 def _step(step: str, inp: Any, out: Any) -> dict:
     return {"step": step, "input": _short(inp), "output": _short(out)}
+
+
+RUNBOOK_PREFIX = "runbooks/"
+INCIDENT_PREFIX = "incidents/"
+STATUS_PREFIX = "status/"
+STATUS_FIELDS = (("status", "상태"), ("pods_ready", "준비된 파드"), ("restarts_last_hour", "최근 1시간 재시작"),
+                 ("error_rate_pct", "에러율(%)"), ("p95_latency_ms", "p95 지연(ms)"), ("last_deploy", "마지막 배포"),
+                 ("note", "비고"))
+INCIDENT_FIELDS = (("service", "서비스"), ("occurred_at", "발생일"), ("severity", "심각도"), ("symptom", "증상"),
+                   ("root_cause", "원인"), ("resolution", "조치"), ("notes", "메모"))
+
+
+def _status_text(service: str, info: dict) -> str:
+    lines = [f"[서비스 상태] {service}"]
+    lines += [f"{label}: {info[key]}" for key, label in STATUS_FIELDS if info.get(key) not in (None, "")]
+    return "\n".join(lines)
+
+
+def ops_contexts(tool_name: str, result: dict) -> list[dict]:
+    """도구 결과를 contexts 항목({doc_id, text})으로 바꾼다.
+
+    런북은 조각 doc_id(runbooks/...#chunk-N), 장애 이력은 incidents/<ID>, 서비스 상태는 status/<서비스>를 쓴다.
+    전체 상태 요약(service="all")은 서비스마다 한 항목으로 나눈다. 찾지 못한 서비스는 근거가 아니므로 넣지 않는다.
+    """
+    if tool_name == "retrieve_runbook":
+        return [{"doc_id": d["doc_id"], "text": d["text"]} for d in result.get("documents", [])]
+    if tool_name == "search_incidents":
+        out = []
+        for inc in result.get("incidents", []):
+            lines = [f"[장애 이력] {inc.get('id', '')}"]
+            lines += [f"{label}: {inc[key]}" for key, label in INCIDENT_FIELDS if inc.get(key) not in (None, "")]
+            out.append({"doc_id": INCIDENT_PREFIX + str(inc.get("id", "")), "text": "\n".join(lines)})
+        return out
+    if tool_name == "get_service_status" and result.get("found"):
+        if result.get("service") == "all":
+            return [{"doc_id": STATUS_PREFIX + svc, "text": _status_text(svc, info)}
+                    for svc, info in result.get("services", {}).items()]
+        return [{"doc_id": STATUS_PREFIX + result["service"], "text": _status_text(result["service"], result)}]
+    return []
+
+
+def pick_contexts(contexts: list[dict], cited: list[str]) -> list[dict]:
+    """최종 답이 인용한 근거만 남긴다. 런북을 먼저, 그다음 장애 이력·서비스 상태 순으로 둔다.
+
+    런북·운영 데이터 각각에서 인용한 것이 하나도 없으면 그 종류는 모은 것을 모두 남긴다(근거를 잃지 않게).
+    """
+    runbooks = [c for c in contexts if c["doc_id"].startswith(RUNBOOK_PREFIX)]
+    ops = [c for c in contexts if not c["doc_id"].startswith(RUNBOOK_PREFIX)]
+    cited_set = set(cited)
+    pick = lambda group: [c for c in group if c["doc_id"] in cited_set] or group  # noqa: E731
+    return pick(runbooks) + pick(ops)
 
 
 def _scrub(value: Any) -> Any:
@@ -300,9 +355,6 @@ class RunbookAgent:
             if name == "retrieve_runbook":
                 for st in result.pop("retrieval_trace", []):
                     trace.append(_step(st["step"], st["input"], st["output"]))
-                for d in result["documents"]:
-                    if all(c["doc_id"] != d["doc_id"] for c in contexts):
-                        contexts.append({"doc_id": d["doc_id"], "text": d["text"]})
                 summary = {"doc_ids": [d["doc_id"] for d in result["documents"]]}
             elif name == "search_incidents":
                 if result["incidents"]:
@@ -311,6 +363,9 @@ class RunbookAgent:
             else:
                 out["has_status"] = True
                 summary = result
+            for ctx in ops_contexts(name, result):  # 런북 조각과 함께 장애 이력·서비스 상태도 근거 후보로 모은다
+                if all(c["doc_id"] != ctx["doc_id"] for c in contexts):
+                    contexts.append(ctx)
             trace.append(_step("tool_call", {"tool": name, "args": args}, summary))
             trace.append(_step(f"tool:{name}", args, summary))
             msgs.append(ToolMessage(json.dumps(result, ensure_ascii=False), tool_call_id=call["id"], name=name))
@@ -351,11 +406,11 @@ class RunbookAgent:
         grounded = bool((res.grounded or state.get("acted")) and has_evidence)
         trace = list(state["trace"])
         if grounded:
-            picked = [c for c in contexts if c["doc_id"] in res.cited_doc_ids]
+            picked = pick_contexts(contexts, res.cited_doc_ids)
             trace.append(_step("final_response", "structured_output",
                                {**res.model_dump(), "grounded": True, "refused": False,
-                                "cited_doc_ids": [c["doc_id"] for c in (picked or contexts)]}))
-            return {"answer": res.answer, "contexts": picked or contexts, "trace": trace}
+                                "cited_doc_ids": [c["doc_id"] for c in picked]}))
+            return {"answer": res.answer, "contexts": picked, "trace": trace}
         trace.append(_step("final_response", "structured_output", {**res.model_dump(), "answer": NO_EVIDENCE_ANSWER, "grounded": False,
                                                                      "cited_doc_ids": [], "refused": False}))
         trace.append(_step("no_evidence", "grounded=false", "런북에 근거 없음: contexts 비움, 절차 미생성"))
@@ -370,6 +425,12 @@ class RunbookAgent:
         return [ToolMessage(note, tool_call_id=c["id"], name=c["name"]) for c in last.tool_calls]
 
     # ---------- 외부 인터페이스 ----------
+    def close(self) -> None:
+        """열어 둔 MCP 서버 세션과 체크포인트 DB 연결을 닫는다."""
+        if self.mcp is not None:
+            self.mcp.close()
+        self._conn.close()
+
     def _cfg(self, thread_id: str) -> dict:
         return {"configurable": {"thread_id": thread_id}}
 

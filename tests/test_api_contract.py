@@ -60,6 +60,8 @@ def test_contexts_map_to_real_files_with_masked_text(client):
     ids = {c["doc_id"] for c in r["contexts"]}
     assert any(i.startswith("runbooks/rb-05-db-timeout-pool-exhaustion.md#chunk-") for i in ids)
     for c in r["contexts"]:
+        if not c["doc_id"].startswith("runbooks/"):  # 장애 이력·서비스 상태 근거는 test_ops_contexts에서 본다
+            continue
         m = re.fullmatch(r"(.+)#chunk-(\d+)", c["doc_id"])
         assert m, c["doc_id"]
         f = ROOT / "data" / m.group(1)

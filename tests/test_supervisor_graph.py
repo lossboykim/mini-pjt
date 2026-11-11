@@ -60,7 +60,9 @@ def test_supervisor_delegates_to_workers_in_order_and_each_uses_only_its_tools(t
     assert order.index("supervisor") < order.index("query_expansion") < order.index("final_response")
     called = [s["input"]["tool"] for s in _steps(res, "tool_call")]
     assert called == ["retrieve_runbook", "search_incidents", "get_service_status"]  # 위임 순서대로 호출된다
-    assert all(c["doc_id"].startswith("runbooks/") for c in res["contexts"])
+    kinds = [c["doc_id"].split("/")[0] for c in res["contexts"]]
+    assert {"incidents", "status"} <= set(kinds) <= {"runbooks", "incidents", "status"}  # 운영 데이터도 근거로 담긴다
+    assert kinds == sorted(kinds, key=lambda k: k != "runbooks")  # 런북이 먼저 온다
 
 
 def test_supervisor_leaves_a_marked_handoff_note_between_workers(team):

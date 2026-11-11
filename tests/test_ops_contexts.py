@@ -1,0 +1,68 @@
+"""contexts 확장: 런북 조각과 함께 장애 이력·서비스 상태도 근거(contexts)로 돌려준다."""
+import json
+
+import pytest
+
+from src.agent import RunbookAgent, ops_contexts, pick_contexts
+from src.tools import INCIDENTS_DB, STATUS_FILE, fake_status_api, query_incidents
+from tests.conftest import FakeEmbeddings
+
+SECRET = "FAKE-SECRET-"
+
+
+def test_incidents_become_one_context_each_with_masked_text():
+    incidents = query_incidents("DB 연결 타임아웃 커넥션 풀", INCIDENTS_DB)
+    ctx = ops_contexts("search_incidents", {"incidents": incidents})
+    assert [c["doc_id"] for c in ctx] == [f"incidents/{i['id']}" for i in incidents]
+    for c, inc in zip(ctx, incidents):
+        assert set(c) == {"doc_id", "text"}
+        assert inc["root_cause"] in c["text"] and inc["resolution"] in c["text"]
+        assert SECRET not in c["text"]
+
+
+def test_status_contexts_single_all_and_missing():
+    one = ops_contexts("get_service_status", fake_status_api("payment-api", STATUS_FILE))
+    assert [c["doc_id"] for c in one] == ["status/payment-api"]
+    assert "8.4" in one[0]["text"] and "1250" in one[0]["text"]  # 에러율·지연 수치가 그대로 담긴다
+    every = ops_contexts("get_service_status", fake_status_api("all", STATUS_FILE))
+    assert {c["doc_id"] for c in every} == {f"status/{s}" for s in json.loads(STATUS_FILE.read_text(encoding="utf-8"))}
+    assert ops_contexts("get_service_status", fake_status_api("no-such", STATUS_FILE)) == []
+
+
+def test_pick_keeps_cited_and_falls_back_per_kind():
+    ctx = [{"doc_id": "status/a", "text": "s"}, {"doc_id": "runbooks/rb-01.md#chunk-0", "text": "r0"},
+           {"doc_id": "runbooks/rb-01.md#chunk-1", "text": "r1"}, {"doc_id": "incidents/INC-1", "text": "i"}]
+    ids = lambda cs: [c["doc_id"] for c in cs]  # noqa: E731
+    # 인용한 것만, 런북이 먼저
+    assert ids(pick_contexts(ctx, ["incidents/INC-1", "runbooks/rb-01.md#chunk-1"])) == [
+        "runbooks/rb-01.md#chunk-1", "incidents/INC-1"]
+    # 운영 데이터를 하나도 인용하지 않았으면 모은 것을 모두 남긴다
+    assert ids(pick_contexts(ctx, ["runbooks/rb-01.md#chunk-0"])) == [
+        "runbooks/rb-01.md#chunk-0", "status/a", "incidents/INC-1"]
+    assert ids(pick_contexts(ctx, [])) == ["runbooks/rb-01.md#chunk-0", "runbooks/rb-01.md#chunk-1",
+                                           "status/a", "incidents/INC-1"]
+
+
+@pytest.fixture
+def agent(tmp_path, llm):
+    a = RunbookAgent(llm=llm, embeddings=FakeEmbeddings(), state_dir=tmp_path / "state",
+                     use_mcp=False, use_supervisor=False)
+    yield a
+    a.close()
+
+
+def test_agent_returns_incident_and_status_contexts_matching_tool_results(agent):
+    res = agent.query("payment-api DB 연결 타임아웃 커넥션 풀 고갈 과거 장애 이력과 현재 상태 알려줘")
+    ids = [c["doc_id"] for c in res["contexts"]]
+    assert any(i.startswith("runbooks/") for i in ids)
+    inc_step = next(s["output"] for s in res["trace"] if s["step"] == "tool:search_incidents")
+    expected = ops_contexts("search_incidents", inc_step)
+    assert expected and all(e in res["contexts"] for e in expected)
+    assert SECRET not in json.dumps(res, ensure_ascii=False)
+    if any(s["step"] == "tool:get_service_status" for s in res["trace"]):
+        assert any(i.startswith("status/") for i in ids)
+
+
+def test_no_evidence_still_returns_empty_contexts(agent):
+    res = agent.query("오늘 점심 메뉴 추천해줘")
+    assert res["contexts"] == [] and res["trace"][-1]["step"] == "no_evidence"
