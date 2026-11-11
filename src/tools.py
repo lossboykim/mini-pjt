@@ -89,8 +89,15 @@ def execute_restart(service: str, log: ActionLog, status_file: Path = STATUS_FIL
 
 
 # ---------------- LLM에 노출하는 도구 ----------------
-def make_tools(retriever, incidents_db: Path = INCIDENTS_DB, status_file: Path = STATUS_FILE) -> list:
-    """LLM에 바인딩할 도구 목록. restart_service는 스키마만 있고, 실행은 승인 노드가 맡는다."""
+def make_tools(retriever, incidents_db: Path = INCIDENTS_DB, status_file: Path = STATUS_FILE, ops_call=None) -> list:
+    """LLM에 바인딩할 도구 목록. restart_service는 스키마만 있고, 실행은 승인 노드가 맡는다.
+
+    ops_call(name, args, local)을 주면 운영 데이터 도구 두 개는 그 함수를 거친다(MCP 서버 경유용).
+    local은 같은 결과를 내는 로컬 구현이며, 도구 이름과 반환 형식은 어느 쪽이든 같다.
+    """
+
+    def _ops(name: str, args: dict, local) -> dict:
+        return local() if ops_call is None else ops_call(name, args, local)
 
     @tool
     def retrieve_runbook(query: str) -> dict:
@@ -101,12 +108,12 @@ def make_tools(retriever, incidents_db: Path = INCIDENTS_DB, status_file: Path =
     @tool
     def search_incidents(query: str) -> dict:
         """과거 장애 이력을 증상이나 서비스 이름으로 조회한다."""
-        return {"incidents": query_incidents(query, incidents_db)}
+        return _ops("search_incidents", {"query": query}, lambda: {"incidents": query_incidents(query, incidents_db)})
 
     @tool
     def get_service_status(service: str) -> dict:
         """서비스의 현재 상태(파드, 에러율, 지연)를 조회한다. service는 서비스 이름(예: payment-api). 서비스를 특정할 수 없으면 "all"로 전체 요약을 본다."""
-        return fake_status_api(service, status_file)
+        return _ops("get_service_status", {"service": service}, lambda: fake_status_api(service, status_file))
 
     @tool
     def restart_service(service: str) -> dict:

@@ -115,7 +115,8 @@ def llm():
 @pytest.fixture
 def agent(tmp_path, llm):
     from src.agent import RunbookAgent
-    return RunbookAgent(llm=llm, embeddings=FakeEmbeddings(), state_dir=tmp_path / "state")
+    # MCP 서버 프로세스는 tests/test_mcp_server.py에서만 띄운다(여기서는 같은 결과를 내는 로컬 구현을 쓴다).
+    return RunbookAgent(llm=llm, embeddings=FakeEmbeddings(), state_dir=tmp_path / "state", use_mcp=False)
 
 
 @pytest.fixture

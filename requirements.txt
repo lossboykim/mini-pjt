@@ -12,6 +12,9 @@ numpy
 boto3
 python-dotenv
 langsmith
+mcp==1.30.0
+fastmcp==2.13.0
+langchain-mcp-adapters==0.3.2
 # 평가·테스트 (evaluation/, tests/)
 pytest
 httpx

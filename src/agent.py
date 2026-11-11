@@ -24,6 +24,7 @@ from langgraph.graph.message import add_messages
 from langgraph.types import Command, interrupt
 from pydantic import BaseModel, Field
 
+from src.mcp_server import SERVER_NAME as MCP_SERVER_NAME, OpsMcpClient
 from src.middleware import build_middleware, masked_tracing
 from src.retriever import REDACTED, ROOT, RunbookRetriever, mask_secrets
 from src.tools import (ACTION_TOOLS, INCIDENTS_DB, READ_TOOLS, STATUS_FILE, ActionLog,
@@ -134,7 +135,7 @@ def default_embeddings():
 class RunbookAgent:
     def __init__(self, llm=None, embeddings=None, state_dir=None, docs_dir=None,
                  incidents_db=None, status_file=None, index_dir=None, log_dir=None,
-                 use_middleware=True):
+                 use_middleware=True, use_mcp=True):
         self.llm = llm or default_llm()
         # 미들웨어(Day 5): 이력 요약, 저장 이력 마스킹, 모델 호출 재시도
         self.middleware = build_middleware(self.llm) if use_middleware else None
@@ -147,7 +148,11 @@ class RunbookAgent:
         self.retriever = RunbookRetriever(
             embeddings, llm=self.llm, docs_dir=docs_dir,
             index_dir=index_dir or self.state_dir / "index")
-        self.tools = make_tools(self.retriever, Path(incidents_db) if incidents_db else INCIDENTS_DB, self.status_file)
+        incidents_path = Path(incidents_db) if incidents_db else INCIDENTS_DB
+        # MCP 서버 연동(Day 4): 장애 이력·서비스 상태 조회는 MCP 서버(src/mcp_server.py)를 거친다
+        self.mcp = OpsMcpClient(incidents_path, self.status_file) if use_mcp else None
+        self.tools = make_tools(self.retriever, incidents_path, self.status_file,
+                                ops_call=self._ops_call if use_mcp else None)
         self._tool_by_name = {t.name: t for t in self.tools}
         self._llm_tools = self.llm.bind_tools(self.tools)
         self._conn = sqlite3.connect(self.state_dir / "checkpoints.sqlite", check_same_thread=False)
@@ -176,6 +181,13 @@ class RunbookAgent:
             if isinstance(m, HumanMessage):
                 return str(m.content)
         return ""
+
+    def _ops_call(self, name: str, args: dict, local) -> dict:
+        """운영 데이터 도구를 MCP 서버로 호출한다. 서버를 못 쓰면 같은 결과를 내는 로컬 구현으로 내려간다."""
+        try:
+            return {**self.mcp.call(name, args), "_transport": "mcp"}
+        except Exception as error:  # noqa: BLE001 - MCP 장애가 질의 전체를 막지 않게 한다
+            return {**local(), "_transport": "local_fallback", "_transport_error": f"{type(error).__name__}: {error}"}
 
     def _invoke(self, runnable, request):
         """모델 호출. 미들웨어가 있으면 wrap_model_call 체인(재시도)을 거친다."""
@@ -238,6 +250,12 @@ class RunbookAgent:
                 trace.append(_step("tool_call", {"tool": name, "args": args}, {"error": str(e)}))
                 trace.append(_step(f"tool:{name}", args, {"error": str(e)}))
                 continue
+            transport = result.pop("_transport", None)
+            if transport:  # 운영 데이터 도구가 어떤 경로로 호출됐는지 남긴다(도구 결과와 tool_call 계약은 그대로)
+                detail = {"transport": transport}
+                if "_transport_error" in result:
+                    detail["error"] = result.pop("_transport_error")
+                trace.append(_step("mcp_call", {"server": MCP_SERVER_NAME, "tool": name, "args": args}, detail))
             if name == "retrieve_runbook":
                 for st in result.pop("retrieval_trace", []):
                     trace.append(_step(st["step"], st["input"], st["output"]))
