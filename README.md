@@ -53,16 +53,16 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
 - Dockerfile이 있으나 **이 PC에 Docker가 없어 빌드 검증은 하지 못했다.**
 
 ## 5. RAGAS 평가 결과
-실제 ragas 0.4.3을 Python 3.12 평가 전용 venv에서 돌렸다(케이스 7건 평균). 자체 구현이 아니다. 6차는 같은 코드로 3회 잰 평균이다.
+실제 ragas 0.4.3을 Python 3.12 평가 전용 venv에서 돌렸다(케이스 7건 평균). 자체 구현이 아니다. 6차·7차는 같은 코드로 3회 잰 평균이다.
 
-| 지표 | 2차 (핵심 8개) | 3차 (추가 패턴) | 4차 (규칙 보완) | 5차 | 6차 (contexts 확장, 3회 평균) |
-|---|---|---|---|---|---|
-| context_recall | 0.762 | 0.726 | 0.762 | 0.762 | 1.000 |
-| context_precision | 0.857 | 0.901 | 0.901 | 0.901 | 0.782 (0.73~0.82) |
-| faithfulness | 0.625 | 0.366 | 0.458 | 0.356 | 0.826 (0.77~0.90) |
-| answer_relevancy | 0.668 | 0.634 | 0.633 | 0.608 | 0.636 (0.62~0.65) |
+| 지표 | 2차 (핵심 8개) | 3차 (추가 패턴) | 4차 (규칙 보완) | 5차 | 6차 (contexts 확장, 3회 평균) | 7차 (가린 줄 제거, 3회 평균) |
+|---|---|---|---|---|---|---|
+| context_recall | 0.762 | 0.726 | 0.762 | 0.762 | 1.000 | 1.000 |
+| context_precision | 0.857 | 0.901 | 0.901 | 0.901 | 0.782 (0.73~0.82) | 0.786 (0.74~0.83) |
+| faithfulness | 0.625 | 0.366 | 0.458 | 0.356 | 0.826 (0.77~0.90) | 0.821 (0.82~0.83) |
+| answer_relevancy | 0.668 | 0.634 | 0.633 | 0.608 | 0.636 (0.62~0.65) | 0.647 (0.61~0.68) |
 
-5차까지 faithfulness가 낮았던 것은 답변에 이력·상태 수치가 들어가는데 contexts에는 런북만 있었기 때문이다. Supervisor를 붙인 뒤에는 운영 데이터 담당이 더 자주 불려 그런 수치가 늘었고, faithfulness가 더 내려갔다. 6차에서 장애 이력과 서비스 상태도 contexts에 담자 faithfulness가 0.36에서 0.83(3회 평균)으로, context_recall이 1.0으로 올랐다. 대신 contexts가 늘어 context_precision은 0.90에서 0.78로 내려갔다. 서비스 이름 없는 질의(E02)가 다섯 서비스의 상태를 모두 근거로 담는 것이 가장 크다. 상세는 `evaluation/round2_report.md`~`round6_report.md`.
+5차까지 faithfulness가 낮았던 것은 답변에 이력·상태 수치가 들어가는데 contexts에는 런북만 있었기 때문이다. Supervisor를 붙인 뒤에는 운영 데이터 담당이 더 자주 불려 그런 수치가 늘었고, faithfulness가 더 내려갔다. 6차에서 장애 이력과 서비스 상태도 contexts에 담자 faithfulness가 0.36에서 0.83(3회 평균)으로, context_recall이 1.0으로 올랐다. 대신 contexts가 늘어 context_precision은 0.90에서 0.78로 내려갔다. 서비스 이름 없는 질의(E02)가 다섯 서비스의 상태를 모두 근거로 담는 것이 가장 크다. 7차에서 가린 비밀값 줄을 contexts에서 빼도 지표는 같은 수준이었다. 상세는 `evaluation/round2_report.md`~`round7_report.md`.
 
 ## 6. 인-아웃 세트 통과율
 고정 파일(`evaluation/test_queries.csv`, `judge_prompt.md`, `rubric.py`)은 바꾸지 않았고 해시를 결과 파일에 기록했다.
@@ -75,6 +75,7 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
 | 4차 | `4f7a2c4` (감독자 규칙 보완) | 15/16 (93.8%) | 4/4 |
 | 5차 | `7248453` (추가 패턴 최종 코드) | 15/16 (93.8%) | 4/4 |
 | 6차 (3회) | `0ce0825` (contexts 확장, MCP 세션 재사용) | 16/16, 15/16, 15/16 | 4/4 (3회 모두) |
+| 7차 (3회) | `9fc80b3` (contexts에서 가린 비밀값 줄 제거) | 16/16, 16/16, 14/16 | 4/4 (3회 모두) |
 
 - 개선폭: +3건(+18.8%p). 목표(13건 이상, 가드레일 100%) 달성.
 - 주요 개선: 증상 질의는 런북 검색 우선, 서비스 이름 없는 질의용 전체 상태 요약, 승인/거부 결과와 실행 여부 안내, trace에 이력 요약 추가.
@@ -84,6 +85,7 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
 - 3차~5차는 모두 15/16이지만 실패한 케이스가 다르다. 추가 패턴을 붙인 코드의 통과율은 "16건 중 15건 안팎"으로 읽어야 한다. 가드레일 4건은 1차부터 5차까지 한 번도 실패하지 않았다. 리포트: `evaluation/round3_report.md`, `round4_report.md`, `round5_report.md`.
 - 6차는 처음으로 같은 코드를 3회 쟀다. 결과는 16/16, 15/16(E02), 15/16(P04)이다. 같은 코드에서도 실패 케이스가 매번 달라, 3차~5차의 한 건 차이가 실행마다 달라지는 폭이라는 것을 확인했다. 통과율은 "16건 중 15~16건"으로 읽는다. 가드레일은 3회 모두 4/4였다.
 - 6차 2회의 E02 실패는 contexts 확장으로 생긴 새 유형이다. 장애 이력 메모의 가려진 비밀값 자리(`DB_PASSWORD=[REDACTED]`)를 심사 모델이 민감 정보 참조로 봤다. 실제 비밀값은 나가지 않았고 고정 규칙 검사는 통과했다. 리포트: `evaluation/round6_report.md`.
+- 7차는 가린 비밀값이 있는 줄을 contexts에서 뺀 코드를 3회 쟀다. 결과는 16/16, 16/16, 14/16(P04, P05)이다. contexts에 `[REDACTED]`가 남은 경우는 0건이고, E02는 3회 모두 통과했다. P04(승인 요청 사실을 답에 쓰지 않음)는 6차·7차 여섯 번 중 두 번 실패해 실행에 따라 다시 나오는 약점이다. 6차·7차 여섯 번의 통과 건수는 16, 15, 15, 16, 16, 14건(평균 약 15.3건)이다. 리포트: `evaluation/round7_report.md`.
 
 ## 7. 트라이앤에러 회고
 - ragas가 Python 3.14에서 설치되지 않아(scikit-network) 3.12 평가 venv를 따로 만들었다.
@@ -96,7 +98,8 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
 - 5차까지는 contexts에 런북만 담겨 RAGAS faithfulness가 낮았다(0.36). 6차에서 장애 이력과 서비스 상태도 근거로 담아 0.83(3회 평균)이 됐다.
 - 5차까지는 라운드마다 1회만 재서 한 건 차이가 실행마다 달라지는 폭인지 구분할 수 없었다. 6차에서 같은 코드를 3회 재 16, 15, 15건을 얻었다.
 - `.venv-eval`을 다시 만들자 `langchain-community` 0.4.2에서 ragas import가 깨졌다. 0.4.1로 고정했다.
-- 남은 한계: 장애 이력 contexts에 가려진 비밀값 자리가 그대로 들어가 심사 모델이 감점할 수 있다(6차 2회 E02). 그 줄을 contexts에서 빼는 것이 다음 개선 대상이다. 전체 상태 요약을 인용하면 contexts가 늘어 context_precision이 내려간다. 반복 측정도 3회뿐이다.
+- contexts 확장 뒤 장애 이력 메모의 가린 비밀값 자리(`DB_PASSWORD=[REDACTED]`)를 심사 모델이 민감 정보 참조로 감점했다(6차 2회 E02). 7차 전에 가린 값이 있는 줄을 contexts에서 뺐다. 런북 RB-05 조각의 같은 줄도 함께 뺐다.
+- 남은 한계: P04에서 승인 뒤 답에 승인 요청 사실이 빠지는 경우가 여섯 번 중 두 번 있었다. 전체 상태 요약을 인용하면 contexts가 늘어 context_precision이 내려간다. 질의 한 건에 모델 호출이 10번 안팎이라 응답이 느리다(서버 확인 때 184초).
 - requirements.txt에서 주석 줄에 붙어 있던 langgraph-checkpoint-sqlite를 분리하고 누락 패키지를 보충했다.
 
 ## 8. 핵심 코드 위치
