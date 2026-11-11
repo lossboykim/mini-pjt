@@ -1,4 +1,7 @@
-"""메인 에이전트 그래프 (LangGraph): guard -> agent(ReAct) <-> tools -> approval(HITL) -> final(구조화 출력).
+"""메인 에이전트 그래프 (LangGraph): guard -> supervisor -> 전문 에이전트(ReAct) <-> tools -> approval(HITL) -> final(구조화 출력).
+
+- 추가 패턴: 미들웨어(src/middleware.py), MCP 서버 연동(src/mcp_server.py), Multi-Agent Supervisor(src/supervisor.py).
+  생성자 인자(use_middleware, use_mcp, use_supervisor)로 끌 수 있고, 끄면 핵심 8개 패턴만으로 돈다.
 
 - trace step 이름은 출력 계약(load_history, query_expansion, hybrid_search, rerank, tool_call, approval_wait, final_response)을 따른다.
   도구 호출은 tool_call(input의 tool 키)과 도구 이름 단계(tool:<이름>)를 함께 남긴다.
@@ -27,6 +30,7 @@ from pydantic import BaseModel, Field
 from src.mcp_server import SERVER_NAME as MCP_SERVER_NAME, OpsMcpClient
 from src.middleware import build_middleware, masked_tracing
 from src.retriever import REDACTED, ROOT, RunbookRetriever, mask_secrets
+from src.supervisor import FINISH, WORKERS, choose_next, worker_system_prompt, worker_tools
 from src.tools import (ACTION_TOOLS, INCIDENTS_DB, READ_TOOLS, STATUS_FILE, ActionLog,
                        execute_restart, make_tools)
 
@@ -34,6 +38,7 @@ MODEL_ID = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 EMBED_MODEL_ID = "amazon.titan-embed-text-v2:0"
 REGION = "us-east-1"
 MAX_AGENT_STEPS = 6
+MAX_TEAM_STEPS = 10  # Supervisor를 쓸 때 한 질의에서 전문 에이전트들이 모델을 부르는 총 횟수 한도
 PROMPT_CANARY = "SYSPROMPT-CANARY-7f3a91"
 
 SYSTEM_PROMPT = f"""[{PROMPT_CANARY}] 너는 쿠버네티스 위에서 도는 웹 서비스의 장애 대응을 돕는 런북 어시스턴트다.
@@ -91,6 +96,8 @@ class State(TypedDict, total=False):
     has_incidents: bool
     has_status: bool
     acted: bool
+    visited: list
+    worker: str
 
 
 def _short(value: Any, limit: int = 400) -> Any:
@@ -135,7 +142,7 @@ def default_embeddings():
 class RunbookAgent:
     def __init__(self, llm=None, embeddings=None, state_dir=None, docs_dir=None,
                  incidents_db=None, status_file=None, index_dir=None, log_dir=None,
-                 use_middleware=True, use_mcp=True):
+                 use_middleware=True, use_mcp=True, use_supervisor=True):
         self.llm = llm or default_llm()
         # 미들웨어(Day 5): 이력 요약, 저장 이력 마스킹, 모델 호출 재시도
         self.middleware = build_middleware(self.llm) if use_middleware else None
@@ -155,6 +162,9 @@ class RunbookAgent:
                                 ops_call=self._ops_call if use_mcp else None)
         self._tool_by_name = {t.name: t for t in self.tools}
         self._llm_tools = self.llm.bind_tools(self.tools)
+        # Multi-Agent Supervisor(Day 6): 감독자가 역할별 전문 에이전트에게 일을 맡긴다. 전문 에이전트는 자기 도구만 본다.
+        self.use_supervisor = use_supervisor
+        self._worker_llms = {name: self.llm.bind_tools(worker_tools(name, self.tools)) for name in WORKERS}
         self._conn = sqlite3.connect(self.state_dir / "checkpoints.sqlite", check_same_thread=False)
         self.graph = self._build_graph(SqliteSaver(self._conn))
         self._lock = threading.Lock()
@@ -168,17 +178,25 @@ class RunbookAgent:
         g.add_node("approval", self._approval)
         g.add_node("final", self._final)
         g.add_edge(START, "guard")
-        g.add_conditional_edges("guard", lambda s: END if s.get("blocked") else "agent", ["agent", END])
-        g.add_conditional_edges("agent", self._after_agent, ["tools", "final"])
+        if self.use_supervisor:
+            # guard -> supervisor -> (전문 에이전트 <-> tools -> approval) -> supervisor ... -> final
+            g.add_node("supervisor", self._supervisor)
+            g.add_conditional_edges("guard", lambda s: END if s.get("blocked") else "supervisor", ["supervisor", END])
+            g.add_conditional_edges("supervisor", lambda s: "agent" if s.get("worker") else "final", ["agent", "final"])
+            g.add_conditional_edges("agent", self._after_agent, ["tools", "supervisor", "final"])
+        else:
+            g.add_conditional_edges("guard", lambda s: END if s.get("blocked") else "agent", ["agent", END])
+            g.add_conditional_edges("agent", self._after_agent, ["tools", "final"])
         g.add_conditional_edges("tools", lambda s: "approval" if s.get("pending") else "agent", ["approval", "agent"])
         g.add_edge("approval", "agent")
-        g.add_edge("final", END)
+        # final은 답하지 못한 도구 호출을 먼저 닫고(메시지만 갱신) 한 번 더 돌아 최종 응답을 만든다.
+        g.add_conditional_edges("final", lambda s: "final" if self._close_unanswered_tool_calls(s) else END, ["final", END])
         return g.compile(checkpointer=checkpointer)
 
     @staticmethod
     def _last_question(state: State) -> str:
         for m in reversed(state["messages"]):
-            if isinstance(m, HumanMessage):
+            if isinstance(m, HumanMessage) and not m.additional_kwargs.get("handoff"):
                 return str(m.content)
         return ""
 
@@ -199,7 +217,7 @@ class RunbookAgent:
         q = self._last_question(state)
         history = _step("load_history", {"thread_messages": "checkpoint"}, {"loaded_messages": max(len(state["messages"]) - 1, 0)})
         reset = {"contexts": [], "steps": 0, "pending": [], "has_incidents": False,
-                 "has_status": False, "acted": False, "blocked": False}
+                 "has_status": False, "acted": False, "blocked": False, "visited": [], "worker": ""}
         head = [history]
         if self.middleware is not None:
             # 턴이 시작될 때 before_model 훅을 돌린다: 저장 이력의 비밀값을 가리고, 이력이 길면 요약으로 줄인다.
@@ -214,18 +232,40 @@ class RunbookAgent:
                                     {"answer": INJECTION_ANSWER, "grounded": False, "cited_doc_ids": [], "refused": True})]}
         return {**reset, "trace": [*head, _step("guard", q, "ok")]}
 
+    def _supervisor(self, state: State) -> dict:
+        """감독자: 다음에 일할 전문 에이전트를 고르거나 FINISH로 최종 응답 단계에 넘긴다."""
+        visited = list(state.get("visited", []))
+        wrap = self.middleware.call_model if self.middleware is not None else None
+        route = choose_next(self.llm, state["messages"], visited, invoke=wrap)
+        trace = list(state["trace"]) + [_step("supervisor", {"visited": visited}, {"next": route.next, "reason": route.reason})]
+        if route.next == FINISH:
+            return {"worker": "", "trace": trace}
+        out: dict = {"worker": route.next, "visited": visited + [route.next], "trace": trace}
+        if not isinstance(state["messages"][-1], HumanMessage):
+            # 앞 에이전트의 답 뒤에 다음 에이전트가 이어받을 지시를 대화에 남긴다(사용자 질문과 구분되는 표식을 단다).
+            out["messages"] = [HumanMessage(f"[감독자 지시] {route.next}에게 맡긴다: {route.reason}",
+                                            additional_kwargs={"handoff": True})]
+        return out
+
     def _agent(self, state: State) -> dict:
         steps = state.get("steps", 0) + 1
-        resp = self._invoke(self._llm_tools, [SystemMessage(SYSTEM_PROMPT)] + state["messages"])
+        worker = state.get("worker") if self.use_supervisor else ""
+        if worker:  # 전문 에이전트: 자기 도구만 바인딩된 모델과 역할 지시문을 쓴다
+            llm, system, where = self._worker_llms[worker], worker_system_prompt(SYSTEM_PROMPT, worker), {"step": steps, "worker": worker}
+        else:
+            llm, system, where = self._llm_tools, SYSTEM_PROMPT, {"step": steps}
+        resp = self._invoke(llm, [SystemMessage(system)] + state["messages"])
         calls = [{"name": c["name"], "args": c["args"]} for c in (getattr(resp, "tool_calls", None) or [])]
-        trace = list(state["trace"]) + [_step("agent", {"step": steps}, {"requested_tool_calls": calls} if calls else "final")]
+        trace = list(state["trace"]) + [_step("agent", where, {"requested_tool_calls": calls} if calls else "final")]
         return {"messages": [resp], "trace": trace, "steps": steps}
 
-    @staticmethod
-    def _after_agent(state: State) -> str:
+    def _after_agent(self, state: State) -> str:
         last = state["messages"][-1]
-        if getattr(last, "tool_calls", None) and state.get("steps", 0) <= MAX_AGENT_STEPS:
+        limit = MAX_TEAM_STEPS if self.use_supervisor else MAX_AGENT_STEPS
+        if getattr(last, "tool_calls", None) and state.get("steps", 0) <= limit:
             return "tools"
+        if self.use_supervisor and not getattr(last, "tool_calls", None) and state.get("steps", 0) < limit:
+            return "supervisor"
         return "final"
 
     def _tools(self, state: State) -> dict:
@@ -298,6 +338,9 @@ class RunbookAgent:
         return {"messages": msgs, "trace": trace, "pending": [], "acted": True}
 
     def _final(self, state: State) -> dict:
+        skipped = self._close_unanswered_tool_calls(state)
+        if skipped:  # 단계 한도 때문에 실행하지 못한 도구 호출: 결과 메시지를 채워 대화 이력을 유효하게 만든 뒤 다시 들어온다
+            return {"messages": skipped}
         msgs = [SystemMessage(SYSTEM_PROMPT)] + state["messages"] + [HumanMessage(FINAL_INSTRUCTION)]
         res: FinalAnswer = self._invoke(self.llm.with_structured_output(FinalAnswer), msgs)
         contexts = state.get("contexts", [])
@@ -314,6 +357,14 @@ class RunbookAgent:
                                                                      "cited_doc_ids": [], "refused": False}))
         trace.append(_step("no_evidence", "grounded=false", "런북에 근거 없음: contexts 비움, 절차 미생성"))
         return {"answer": NO_EVIDENCE_ANSWER, "contexts": [], "trace": trace}
+
+    @staticmethod
+    def _close_unanswered_tool_calls(state: State) -> list:
+        last = state["messages"][-1]
+        if not getattr(last, "tool_calls", None):
+            return []
+        note = json.dumps({"error": "단계 한도를 넘어 실행하지 않았다"}, ensure_ascii=False)
+        return [ToolMessage(note, tool_call_id=c["id"], name=c["name"]) for c in last.tool_calls]
 
     # ---------- 외부 인터페이스 ----------
     def _cfg(self, thread_id: str) -> dict:

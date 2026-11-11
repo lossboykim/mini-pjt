@@ -67,7 +67,8 @@ class FakeChat(BaseChatModel):
         return ChatResult(generations=[ChatGeneration(message=self._policy(messages))])
 
     def _policy(self, messages):
-        idx = max(i for i, m in enumerate(messages) if isinstance(m, HumanMessage))
+        idx = max(i for i, m in enumerate(messages)
+                  if isinstance(m, HumanMessage) and not m.additional_kwargs.get("handoff"))
         text = str(messages[idx].content)
         low = text.lower()
         called = {c["name"] for m in messages[idx + 1:] if isinstance(m, AIMessage) for c in m.tool_calls}
@@ -92,6 +93,8 @@ class FakeChat(BaseChatModel):
     def _structured(self, schema, x):
         name = schema.__name__
         text = _text(x)
+        if name == "Route":  # 감독자: 아직 아무도 일하지 않았으면 첫 전문 에이전트에게 맡기고, 그 뒤에는 끝낸다
+            return schema(next="runbook_agent" if "지금까지 일한 에이전트: 없음" in text else "FINISH", reason="fake")
         if name == "ExpandedQueries":
             return schema(queries=[])
         if name == "RerankResult":
