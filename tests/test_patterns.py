@@ -46,3 +46,21 @@ def test_final_answer_validated_by_pydantic(client):
         m = FinalAnswer.model_validate(finals[0]["output"])
         assert isinstance(m.grounded, bool) and isinstance(m.cited_doc_ids, list)
     assert "retrieval_trace" not in json.dumps(post(client, MULTI_Q))
+
+
+def test_default_agent_uses_index_built_by_script(tmp_path, llm, monkeypatch):
+    """상태 폴더를 지정하지 않은 기본 실행(서버)은 scripts/build_index.py가 만드는 index/를 쓴다."""
+    import src.agent as agent_mod
+    from src.retriever import DEFAULT_INDEX_DIR
+    from tests.conftest import FakeEmbeddings
+    monkeypatch.setattr(agent_mod, "ROOT", tmp_path)  # 상태 DB는 임시 폴더에 만든다
+    a = agent_mod.RunbookAgent(llm=llm, embeddings=FakeEmbeddings(), use_mcp=False)
+    try:
+        assert a.retriever.index_dir == DEFAULT_INDEX_DIR
+    finally:
+        a.close()
+    b = agent_mod.RunbookAgent(llm=llm, embeddings=FakeEmbeddings(), state_dir=tmp_path / "s", use_mcp=False)
+    try:
+        assert b.retriever.index_dir == tmp_path / "s" / "index"  # 상태 폴더를 지정하면 그 아래를 쓴다
+    finally:
+        b.close()

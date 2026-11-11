@@ -107,10 +107,10 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
 | 운영 데이터 근거(contexts) | `src/agent.py:138` | `ops_contexts` |
 | 인용 근거 선별 | `src/agent.py:161` | `pick_contexts` |
 | 에이전트 클래스 | `src/agent.py:198` | `RunbookAgent` |
-| 승인 대기(HITL) | `src/agent.py:374` | `_approval` |
-| 최종 응답 | `src/agent.py:398` | `_final` |
-| 질의 진입 | `src/agent.py:460` | `query` |
-| 승인 재개 | `src/agent.py:469` | `approve` |
+| 승인 대기(HITL) | `src/agent.py:375` | `_approval` |
+| 최종 응답 | `src/agent.py:399` | `_final` |
+| 질의 진입 | `src/agent.py:461` | `query` |
+| 승인 재개 | `src/agent.py:470` | `approve` |
 | MCP 세션 재사용 | `src/mcp_server.py:70` | `_SessionWorker` |
 | 쿼리 확장 | `src/retriever.py:143` | `expand_query` |
 | 하이브리드 검색 | `src/retriever.py:156` | `hybrid_search` |

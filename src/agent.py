@@ -30,7 +30,7 @@ from pydantic import BaseModel, Field
 
 from src.mcp_server import SERVER_NAME as MCP_SERVER_NAME, OpsMcpClient
 from src.middleware import build_middleware, masked_tracing
-from src.retriever import REDACTED, ROOT, RunbookRetriever, mask_secrets
+from src.retriever import DEFAULT_INDEX_DIR, REDACTED, ROOT, RunbookRetriever, mask_secrets
 from src.supervisor import FINISH, WORKERS, choose_next, worker_system_prompt, worker_tools
 from src.tools import (ACTION_TOOLS, INCIDENTS_DB, READ_TOOLS, STATUS_FILE, ActionLog,
                        execute_restart, make_tools)
@@ -208,9 +208,10 @@ class RunbookAgent:
         self.status_file = Path(status_file) if status_file else STATUS_FILE
         self.action_log = ActionLog(
             (Path(log_dir) if log_dir else (self.state_dir / "logs" if state_dir else ROOT / "logs")) / "action_log.jsonl")
+        # 색인 위치: 지정값 > 상태 폴더를 지정했으면 그 아래 index/ > 기본 index/(scripts/build_index.py가 만드는 곳)
         self.retriever = RunbookRetriever(
             embeddings, llm=self.llm, docs_dir=docs_dir,
-            index_dir=index_dir or self.state_dir / "index")
+            index_dir=index_dir or (self.state_dir / "index" if state_dir else DEFAULT_INDEX_DIR))
         incidents_path = Path(incidents_db) if incidents_db else INCIDENTS_DB
         # MCP 서버 연동(Day 4): 장애 이력·서비스 상태 조회는 MCP 서버(src/mcp_server.py)를 거친다
         self.mcp = OpsMcpClient(incidents_path, self.status_file) if use_mcp else None
