@@ -85,15 +85,15 @@ faithfulness·answer_relevancy가 낮은 것은 답변에 이력·상태 수치�
 | 인젝션 가드 정규식 | `src/agent.py:63` | `INJECTION_RE` |
 | 에이전트 클래스 | `src/agent.py:132` | `RunbookAgent` |
 | 승인 대기(HITL) | `src/agent.py:242` | `_approval` |
-| 최종 응답 | `src/agent.py:262` | `_final` |
-| 질의 진입 | `src/agent.py:303` | `query` |
-| 승인 재개 | `src/agent.py:311` | `approve` |
+| 최종 응답 | `src/agent.py:264` | `_final` |
+| 질의 진입 | `src/agent.py:305` | `query` |
+| 승인 재개 | `src/agent.py:313` | `approve` |
 | 쿼리 확장 | `src/retriever.py:143` | `expand_query` |
 | 하이브리드 검색 | `src/retriever.py:156` | `hybrid_search` |
 | 리랭킹 | `src/retriever.py:181` | `rerank` |
 | 장애 이력 조회 | `src/tools.py:37` | `query_incidents` |
 | 가짜 조치 로그 | `src/tools.py:58` | `ActionLog` |
-| 도구 정의 | `src/tools.py:90` | `make_tools` |
+| 도구 정의 | `src/tools.py:92` | `make_tools` |
 | API 서버 | `src/server.py:20` | `create_app` |
 | 가드레일 판정 | `evaluation/rubric.py:154` | `judge_guardrail` |
 | 평가 실행 | `evaluation/run_eval.py:75` | `main` |

@@ -131,13 +131,14 @@ def default_embeddings():
 
 class RunbookAgent:
     def __init__(self, llm=None, embeddings=None, state_dir=None, docs_dir=None,
-                 incidents_db=None, status_file=None, index_dir=None):
+                 incidents_db=None, status_file=None, index_dir=None, log_dir=None):
         self.llm = llm or default_llm()
         embeddings = embeddings or default_embeddings()
         self.state_dir = Path(state_dir) if state_dir else ROOT / "state"
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.status_file = Path(status_file) if status_file else STATUS_FILE
-        self.action_log = ActionLog(self.state_dir / "action_log.jsonl")
+        self.action_log = ActionLog(
+            (Path(log_dir) if log_dir else (self.state_dir / "logs" if state_dir else ROOT / "logs")) / "action_log.jsonl")
         self.retriever = RunbookRetriever(
             embeddings, llm=self.llm, docs_dir=docs_dir,
             index_dir=index_dir or self.state_dir / "index")
@@ -207,7 +208,6 @@ class RunbookAgent:
             name, args = call["name"], call["args"]
             if name in ACTION_TOOLS:
                 pending.append(call)
-                trace.append(_step("tool_call", {"tool": name, "args": args}, "awaiting_approval"))
                 trace.append(_step("approval_wait", {"tool": name, "args": args}, "awaiting_approval"))
                 continue
             if name not in READ_TOOLS:
@@ -239,8 +239,9 @@ class RunbookAgent:
             msgs.append(ToolMessage(json.dumps(result, ensure_ascii=False), tool_call_id=call["id"], name=name))
         return {**out, "messages": msgs, "trace": trace, "contexts": contexts, "pending": pending}
 
-    def _approval(self, state: State) -> dict:
+    def _approval(self, state: State, config) -> dict:
         pending = state["pending"]
+        thread_id = config["configurable"]["thread_id"]
         # 모든 interrupt를 먼저 받고, 그 뒤에 실행한다(재개 때 노드가 처음부터 다시 돌기 때문).
         decisions = [interrupt({"action": c["name"], "args": c["args"]}) for c in pending]
         trace = list(state["trace"])
@@ -249,13 +250,14 @@ class RunbookAgent:
         for call, decision in zip(pending, decisions):
             service = str(call["args"].get("service", ""))
             if decision == "approve":
-                result = execute_restart(service, self.action_log, self.status_file)
+                result = execute_restart(service, self.action_log, self.status_file, thread_id)
                 executed_any = executed_any or result["executed"]
-            else:
+            else:  # 거부: 실행한 도구 호출이 없으므로 tool_call을 남기지 않는다
                 result = {"executed": False, "action": call["name"], "service": service,
                           "message": "사람이 거부해 실행하지 않았다"}
-            trace.append(_step("tool_call", {"tool": call["name"], "args": call["args"]}, {"decision": decision, **result}))
-            trace.append(_step(f"tool:{call['name']}", call["args"], {"decision": decision, **result}))
+            if decision == "approve":
+                trace.append(_step("tool_call", {"tool": call["name"], "args": call["args"]}, result))
+                trace.append(_step(f"tool:{call['name']}", call["args"], result))
             msgs.append(ToolMessage(json.dumps(result, ensure_ascii=False), tool_call_id=call["id"], name=call["name"]))
         return {"messages": msgs, "trace": trace, "pending": [], "acted": True}
 
@@ -312,6 +314,8 @@ class RunbookAgent:
         if decision not in ("approve", "reject"):
             raise ValueError("decision은 approve 또는 reject여야 한다")
         with self._lock:
+            if self.action_log.has_thread(thread_id):
+                raise LookupError("이미 처리된 thread_id다")
             if not self._pending_interrupts(self.graph.get_state(self._cfg(thread_id))):
                 raise LookupError("승인 대기 중인 조치가 없다")
             self.graph.invoke(Command(resume=decision), self._cfg(thread_id))

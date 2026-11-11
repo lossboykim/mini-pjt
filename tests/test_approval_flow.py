@@ -23,7 +23,9 @@ def test_query_waits_for_approval_without_executing(client, agent):
     assert FIVE <= set(r)
     assert agent.action_log.read() == []
     assert client.get("/actions").json()["actions"] == []
-    assert any(t["step"] == "approval_wait" for t in r["trace"])
+    wait = [t for t in r["trace"] if t["step"] == "approval_wait"]
+    assert wait and wait[0]["input"]["tool"] == "restart_service" and "args" in wait[0]["input"]
+    assert not any(t["step"] == "tool_call" and t["input"].get("tool") == "restart_service" for t in r["trace"])
 
 
 def test_approve_executes_exactly_once(client, agent):
@@ -32,8 +34,11 @@ def test_approve_executes_exactly_once(client, agent):
     assert set(done) == FIVE and done["status"] == "completed"
     assert done["thread_id"] == r["thread_id"]
     log = agent.action_log.read()
-    assert len(log) == 1 and log[0]["executed"] is True
-    assert log[0]["action"] == "restart_service" and log[0]["service"] == "order-worker"
+    assert len(log) == 1 and set(log[0]) == {"thread_id", "action", "target", "executed_at"}
+    assert log[0]["thread_id"] == r["thread_id"]
+    assert log[0]["action"] == "restart_service" and log[0]["target"] == "order-worker"
+    call = [t for t in done["trace"] if t["step"] == "tool_call" and t["input"]["tool"] == "restart_service"]
+    assert len(call) == 1 and call[0]["output"]["executed"] is True
     # 이미 처리된 대화에 다시 승인하면 거절되고 재실행되지 않는다
     again = client.post("/approve", json={"thread_id": r["thread_id"], "decision": "approve"})
     assert again.status_code == 409
@@ -46,8 +51,38 @@ def test_reject_does_not_execute(client, agent):
     done = decide(client, r["thread_id"], "reject")
     assert set(done) == FIVE and done["status"] == "completed"
     assert agent.action_log.read() == []
-    out = next(t["output"] for t in done["trace"] if t["step"] == "tool:restart_service")
-    assert out["executed"] is False and out["decision"] == "reject"
+    assert not any(t["step"] in ("tool_call", "tool:restart_service") and
+                   (t["input"].get("tool") == "restart_service" or t["step"].startswith("tool:"))
+                   for t in done["trace"] if "restart" in str(t["input"]))
+    assert client.post("/approve", json={"thread_id": r["thread_id"], "decision": "reject"}).status_code == 409
+
+
+def test_approve_blocked_when_log_line_exists(client, agent):
+    """로그에 이미 thread_id 줄이 있으면 대기 중이어도 실행하지 않고 409."""
+    r = ask(client)
+    agent.action_log.append({"thread_id": r["thread_id"], "action": "restart_service",
+                             "target": "order-worker", "executed_at": "x"})
+    assert client.post("/approve", json={"thread_id": r["thread_id"], "decision": "approve"}).status_code == 409
+    assert len(agent.action_log.read()) == 1
+
+
+def test_409_survives_restart(tmp_path, llm):
+    from fastapi.testclient import TestClient
+    from src.agent import RunbookAgent
+    from src.server import create_app
+    from tests.conftest import FakeEmbeddings
+    mk = lambda: TestClient(create_app(RunbookAgent(llm=llm, embeddings=FakeEmbeddings(), state_dir=tmp_path / "state")))
+    c1 = mk()
+    r = ask(c1)
+    decide(c1, r["thread_id"], "approve")
+    c2 = mk()  # 서버 재시작: 새 에이전트가 같은 저장소를 읽는다
+    assert c2.post("/approve", json={"thread_id": r["thread_id"], "decision": "approve"}).status_code == 409
+    log = tmp_path / "state" / "logs" / "action_log.jsonl"
+    assert len(log.read_text(encoding="utf-8").splitlines()) == 1
+    # 재시작 뒤에도 대기 상태가 유지된다
+    p = ask(c2, "payment-api 재시작해줘")
+    c3 = mk()
+    assert decide(c3, p["thread_id"], "approve")["status"] == "completed"
 
 
 def test_followup_query_while_pending_does_not_execute(client, agent):

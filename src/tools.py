@@ -67,23 +67,25 @@ class ActionLog:
         with self._lock, open(self.path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
+    def has_thread(self, thread_id: str) -> bool:
+        return any(e.get("thread_id") == thread_id for e in self.read())
+
     def read(self) -> list[dict]:
         if not self.path.exists():
             return []
         return [json.loads(line) for line in self.path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def execute_restart(service: str, log: ActionLog, status_file: Path = STATUS_FILE) -> dict:
-    """가짜 재시작. 승인 노드에서만 호출한다."""
+def execute_restart(service: str, log: ActionLog, status_file: Path = STATUS_FILE, thread_id: str = "") -> dict:
+    """가짜 재시작. 승인 노드에서만 호출한다. 실제로 실행했을 때만 로그 한 줄({thread_id, action, target, executed_at})을 남긴다."""
     info = fake_status_api(service, status_file)
     if not info["found"]:
-        result = {"executed": False, "action": "restart_service", "service": service,
-                  "message": "존재하지 않는 서비스라 실행하지 않았다"}
-    else:
-        result = {"executed": True, "action": "restart_service", "service": info["service"],
-                  "message": f"{info['service']} 롤링 재시작을 (가짜로) 실행했다"}
-    log.append({**result, "at": time.strftime("%Y-%m-%dT%H:%M:%S")})
-    return result
+        return {"executed": False, "action": "restart_service", "service": service,
+                "message": "존재하지 않는 서비스라 실행하지 않았다"}
+    log.append({"thread_id": thread_id, "action": "restart_service", "target": info["service"],
+                "executed_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")})
+    return {"executed": True, "action": "restart_service", "service": info["service"],
+            "message": f"{info['service']} 롤링 재시작을 (가짜로) 실행했다"}
 
 
 # ---------------- LLM에 노출하는 도구 ----------------
