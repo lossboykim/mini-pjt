@@ -1,6 +1,7 @@
 """RAG 파이프라인: 쿼리 확장 -> 하이브리드 검색(BM25 + 임베딩, RRF 결합) -> LLM 리랭킹.
 
-런북은 문서 한 개를 한 조각으로 색인한다. 색인과 응답에는 비밀값을 가린 본문만 쓴다.
+런북은 "## " 절 경계로 잘라 600자 안팎 청크로 색인한다. doc_id는 "<data 기준 상대 경로>#chunk-<n>"이다.
+색인과 응답에는 비밀값을 가린 청크 본문만 쓴다.
 벡터 색인은 커밋하지 않고 build_index()/scripts/build_index.py로 다시 만든다.
 """
 from __future__ import annotations
@@ -21,6 +22,7 @@ DEFAULT_INDEX_DIR = ROOT / "index"
 
 SECRET_RE = re.compile(r"FAKE-SECRET-[A-Za-z0-9_-]*")
 REDACTED = "[REDACTED]"
+CHUNK_CHARS = 600
 
 
 def mask_secrets(text: str) -> str:
@@ -43,7 +45,7 @@ def tokenize(text: str) -> list[str]:
 @dataclass
 class Doc:
     doc_id: str
-    text: str  # 비밀값을 가린 파일 전체 내용
+    text: str  # 비밀값을 가린 청크 본문(원본 파일의 연속된 일부)
     score: float = 0.0
 
 
@@ -73,7 +75,7 @@ RERANK_PROMPT = (
 
 class RunbookRetriever:
     def __init__(self, embeddings, llm=None, docs_dir=None, index_dir=None,
-                 top_k: int = 3, candidates: int = 6, min_score: int = 6, rrf_k: int = 60):
+                 top_k: int = 4, candidates: int = 8, min_score: int = 6, rrf_k: int = 60):
         self.embeddings = embeddings
         self.llm = llm
         self.docs_dir = Path(docs_dir) if docs_dir else DEFAULT_DOCS_DIR
@@ -84,9 +86,26 @@ class RunbookRetriever:
         self._bm25: BM25Okapi | None = None
 
     # ---------- 색인 ----------
+    @staticmethod
+    def split_chunks(text: str, limit: int = CHUNK_CHARS) -> list[str]:
+        """절("## ") 경계로 자른 뒤 limit자 안팎이 되도록 이웃 절을 합친다. 조각을 이으면 원문이 된다."""
+        parts = [p for p in re.split(r"(?=^## )", text, flags=re.M) if p]
+        chunks: list[str] = []
+        for part in parts:
+            if chunks and len(chunks[-1]) + len(part) <= limit:
+                chunks[-1] += part
+            else:
+                chunks.append(part)
+        return chunks
+
     def _load_docs(self) -> list[Doc]:
-        files = sorted(self.docs_dir.glob("*.md"))
-        return [Doc(p.stem, mask_secrets(p.read_text(encoding="utf-8"))) for p in files]
+        base = self.docs_dir.parent
+        docs: list[Doc] = []
+        for p in sorted(self.docs_dir.glob("*.md")):
+            rel = p.relative_to(base).as_posix()
+            for n, chunk in enumerate(self.split_chunks(p.read_text(encoding="utf-8"))):
+                docs.append(Doc(f"{rel}#chunk-{n}", mask_secrets(chunk)))
+        return docs
 
     @staticmethod
     def _fingerprint(docs: list[Doc]) -> str:

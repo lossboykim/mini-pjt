@@ -81,16 +81,16 @@ faithfulness·answer_relevancy가 낮은 것은 답변에 이력·상태 수치�
 ## 8. 핵심 코드 위치
 | 항목 | 위치 | 심볼 |
 |---|---|---|
-| 구조화 출력 | `src/agent.py:70` | `FinalAnswer` |
-| 인젝션 가드 정규식 | `src/agent.py:61` | `INJECTION_RE` |
-| 에이전트 클래스 | `src/agent.py:129` | `RunbookAgent` |
-| 승인 대기(HITL) | `src/agent.py:236` | `_approval` |
-| 최종 응답 | `src/agent.py:255` | `_final` |
-| 질의 진입 | `src/agent.py:296` | `query` |
-| 승인 재개 | `src/agent.py:304` | `approve` |
-| 쿼리 확장 | `src/retriever.py:122` | `expand_query` |
-| 하이브리드 검색 | `src/retriever.py:135` | `hybrid_search` |
-| 리랭킹 | `src/retriever.py:150` | `rerank` |
+| 구조화 출력 | `src/agent.py:72` | `FinalAnswer` |
+| 인젝션 가드 정규식 | `src/agent.py:63` | `INJECTION_RE` |
+| 에이전트 클래스 | `src/agent.py:132` | `RunbookAgent` |
+| 승인 대기(HITL) | `src/agent.py:244` | `_approval` |
+| 최종 응답 | `src/agent.py:264` | `_final` |
+| 질의 진입 | `src/agent.py:305` | `query` |
+| 승인 재개 | `src/agent.py:313` | `approve` |
+| 쿼리 확장 | `src/retriever.py:141` | `expand_query` |
+| 하이브리드 검색 | `src/retriever.py:154` | `hybrid_search` |
+| 리랭킹 | `src/retriever.py:169` | `rerank` |
 | 장애 이력 조회 | `src/tools.py:37` | `query_incidents` |
 | 가짜 조치 로그 | `src/tools.py:58` | `ActionLog` |
 | 도구 정의 | `src/tools.py:90` | `make_tools` |

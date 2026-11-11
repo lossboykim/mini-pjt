@@ -23,7 +23,7 @@ def test_query_waits_for_approval_without_executing(client, agent):
     assert FIVE <= set(r)
     assert agent.action_log.read() == []
     assert client.get("/actions").json()["actions"] == []
-    assert any(t["step"] == "approval_request" for t in r["trace"])
+    assert any(t["step"] == "approval_wait" for t in r["trace"])
 
 
 def test_approve_executes_exactly_once(client, agent):

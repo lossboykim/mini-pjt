@@ -39,10 +39,10 @@ def test_multiple_distinct_tools_in_one_query(client):
 def test_final_answer_validated_by_pydantic(client):
     for q in (MULTI_Q, "오늘 점심 메뉴 추천해줘"):
         r = post(client, q)
-        finals = [t for t in r["trace"] if t["step"] == "final_answer"]
+        finals = [t for t in r["trace"] if t["step"] == "final_response"]
         assert len(finals) == 1
-        assert steps(r).index("final_answer") > max(
+        assert steps(r).index("final_response") > max(
             (i for i, s in enumerate(steps(r)) if s.startswith("tool:")), default=-1)
         m = FinalAnswer.model_validate(finals[0]["output"])
-        assert isinstance(m.grounded, bool) and isinstance(m.evidence_doc_ids, list)
+        assert isinstance(m.grounded, bool) and isinstance(m.cited_doc_ids, list)
     assert "retrieval_trace" not in json.dumps(post(client, MULTI_Q))

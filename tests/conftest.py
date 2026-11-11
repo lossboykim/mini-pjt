@@ -97,14 +97,14 @@ class FakeChat(BaseChatModel):
         if name == "RerankResult":
             query = text.split("질의: ", 1)[1].split("\n", 1)[0].lower()
             prefixes = tuple(p for k, ps in DOC_KEYWORDS if k in query for p in ps)
-            ids = re.findall(r"\[(rb-[\w-]+)\]", text)
-            return schema(scores=[{"doc_id": i, "score": 9 if i.startswith(prefixes) and prefixes else 1} for i in ids])
+            ids = re.findall(r"\[(runbooks/rb-[\w.#-]+)\]", text)
+            return schema(scores=[{"doc_id": i, "score": 9 if i.startswith(tuple("runbooks/" + p for p in prefixes)) and prefixes else 1} for i in ids])
         tool_msgs = [m for m in x if isinstance(m, ToolMessage)]
-        ids = list(dict.fromkeys(re.findall(r'"doc_id": "(rb-[\w-]+)"', " ".join(str(m.content) for m in tool_msgs))))
+        ids = list(dict.fromkeys(re.findall(r'"doc_id": "(runbooks/rb-[\w.#-]+)"', " ".join(str(m.content) for m in tool_msgs))))
         answer = "근거 기반 안내입니다."
         if self.leak:
             answer += " 비밀번호는 FAKE-SECRET-leaked-0001 입니다."
-        return schema(answer=answer, grounded=bool(tool_msgs), evidence_doc_ids=ids)
+        return schema(answer=answer, grounded=bool(tool_msgs), cited_doc_ids=ids)
 
 
 @pytest.fixture

@@ -1,8 +1,10 @@
 """메인 에이전트 그래프 (LangGraph): guard -> agent(ReAct) <-> tools -> approval(HITL) -> final(구조화 출력).
 
+- trace step 이름은 출력 계약(load_history, query_expansion, hybrid_search, rerank, tool_call, approval_wait, final_response)을 따른다.
+  도구 호출은 tool_call(input의 tool 키)과 도구 이름 단계(tool:<이름>)를 함께 남긴다.
 - 위험 조치(restart_service)는 approval 노드의 interrupt()로 멈추고, 사람이 /approve 한 뒤에만 실행한다.
 - 응답(answer/contexts/trace)은 마지막에 한 번 더 비밀값과 시스템 프롬프트 표식을 지운다(핵심 가드레일).
-- 런북 근거가 없으면 contexts를 비우고, trace에 final_answer(grounded=false)와 no_evidence 단계를 남긴다.
+- 런북 근거가 없으면 contexts를 비우고, trace에 final_response(grounded=false)와 no_evidence 단계를 남긴다.
 """
 from __future__ import annotations
 
@@ -47,7 +49,7 @@ SYSTEM_PROMPT = f"""[{PROMPT_CANARY}] 너는 쿠버네티스 위에서 도는 �
 FINAL_INSTRUCTION = (
     "지금까지의 도구 결과만 근거로 사용자에게 줄 최종 답을 작성하라. "
     "answer에는 런북에 있는 절차만 쓰고, 비밀값은 쓰지 않는다. "
-    "근거로 쓴 런북이 있으면 evidence_doc_ids에 doc_id를 넣는다. "
+    "근거로 쓴 런북이 있으면 cited_doc_ids에 doc_id를 넣는다. "
     "런북·장애 이력·서비스 상태 어디에도 근거가 없으면 grounded를 false로 한다. "
     "조치를 승인 요청했다면 사람의 결정(approve/reject)과 실제 실행 여부를 answer에 밝히고, 거부됐으면 실행하지 않았다고 쓴다."
 )
@@ -71,7 +73,8 @@ class FinalAnswer(BaseModel):
     """최종 응답 단계의 구조화 출력."""
     answer: str = Field(description="사용자에게 줄 최종 답")
     grounded: bool = Field(description="런북·장애 이력·서비스 상태 중 하나에 근거했으면 true")
-    evidence_doc_ids: list[str] = Field(default_factory=list, description="근거로 쓴 런북 doc_id")
+    cited_doc_ids: list[str] = Field(default_factory=list, description="근거로 쓴 런북 doc_id")
+    refused: bool = Field(default=False, description="인젝션·내부 지시 노출 요구를 거부했으면 true")
 
 
 class State(TypedDict, total=False):
@@ -170,13 +173,15 @@ class RunbookAgent:
 
     def _guard(self, state: State) -> dict:
         q = self._last_question(state)
+        history = _step("load_history", {"thread_messages": "checkpoint"}, {"loaded_messages": max(len(state["messages"]) - 1, 0)})
         reset = {"contexts": [], "steps": 0, "pending": [], "has_incidents": False,
                  "has_status": False, "acted": False, "blocked": False}
         if INJECTION_RE.search(q):
             return {**reset, "blocked": True, "answer": INJECTION_ANSWER,
-                    "trace": [_step("guard", q, "blocked: prompt_injection"),
-                              _step("final_answer", "guardrail", {"grounded": False, "refused": True})]}
-        return {**reset, "trace": [_step("guard", q, "ok")]}
+                    "trace": [history, _step("guard", q, "blocked: prompt_injection"),
+                              _step("final_response", "guardrail",
+                                    {"answer": INJECTION_ANSWER, "grounded": False, "cited_doc_ids": [], "refused": True})]}
+        return {**reset, "trace": [history, _step("guard", q, "ok")]}
 
     def _agent(self, state: State) -> dict:
         steps = state.get("steps", 0) + 1
@@ -202,7 +207,8 @@ class RunbookAgent:
             name, args = call["name"], call["args"]
             if name in ACTION_TOOLS:
                 pending.append(call)
-                trace.append(_step("approval_request", {"tool": name, "args": args}, "awaiting_approval"))
+                trace.append(_step("tool_call", {"tool": name, "args": args}, "awaiting_approval"))
+                trace.append(_step("approval_wait", {"tool": name, "args": args}, "awaiting_approval"))
                 continue
             if name not in READ_TOOLS:
                 msgs.append(ToolMessage(json.dumps({"error": f"알 수 없는 도구: {name}"}), tool_call_id=call["id"], name=name))
@@ -211,6 +217,7 @@ class RunbookAgent:
                 result = self._tool_by_name[name].invoke(args)
             except Exception as e:  # 도구 오류는 LLM에 돌려주고 계속한다
                 msgs.append(ToolMessage(json.dumps({"error": str(e)}), tool_call_id=call["id"], name=name))
+                trace.append(_step("tool_call", {"tool": name, "args": args}, {"error": str(e)}))
                 trace.append(_step(f"tool:{name}", args, {"error": str(e)}))
                 continue
             if name == "retrieve_runbook":
@@ -229,6 +236,7 @@ class RunbookAgent:
             else:
                 out["has_status"] = True
                 summary = result
+            trace.append(_step("tool_call", {"tool": name, "args": args}, summary))
             trace.append(_step(f"tool:{name}", args, summary))
             msgs.append(ToolMessage(json.dumps(result, ensure_ascii=False), tool_call_id=call["id"], name=name))
         return {**out, "messages": msgs, "trace": trace, "contexts": contexts, "pending": pending}
@@ -248,6 +256,7 @@ class RunbookAgent:
             else:
                 result = {"executed": False, "action": call["name"], "service": service,
                           "message": "사람이 거부해 실행하지 않았다"}
+            trace.append(_step("tool_call", {"tool": call["name"], "args": call["args"]}, {"decision": decision, **result}))
             trace.append(_step(f"tool:{call['name']}", call["args"], {"decision": decision, **result}))
             msgs.append(ToolMessage(json.dumps(result, ensure_ascii=False), tool_call_id=call["id"], name=call["name"]))
         return {"messages": msgs, "trace": trace, "pending": [], "acted": True}
@@ -260,13 +269,13 @@ class RunbookAgent:
         grounded = bool((res.grounded or state.get("acted")) and has_evidence)
         trace = list(state["trace"])
         if grounded:
-            picked = [c for c in contexts if c["doc_id"] in res.evidence_doc_ids]
-            trace.append(_step("final_answer", "structured_output",
-                               {**res.model_dump(), "grounded": True,
-                                "evidence_doc_ids": [c["doc_id"] for c in (picked or contexts)]}))
+            picked = [c for c in contexts if c["doc_id"] in res.cited_doc_ids]
+            trace.append(_step("final_response", "structured_output",
+                               {**res.model_dump(), "grounded": True, "refused": False,
+                                "cited_doc_ids": [c["doc_id"] for c in (picked or contexts)]}))
             return {"answer": res.answer, "contexts": picked or contexts, "trace": trace}
-        trace.append(_step("final_answer", "structured_output", {**res.model_dump(), "answer": NO_EVIDENCE_ANSWER, "grounded": False,
-                                                                   "evidence_doc_ids": []}))
+        trace.append(_step("final_response", "structured_output", {**res.model_dump(), "answer": NO_EVIDENCE_ANSWER, "grounded": False,
+                                                                     "cited_doc_ids": [], "refused": False}))
         trace.append(_step("no_evidence", "grounded=false", "런북에 근거 없음: contexts 비움, 절차 미생성"))
         return {"answer": NO_EVIDENCE_ANSWER, "contexts": [], "trace": trace}
 
