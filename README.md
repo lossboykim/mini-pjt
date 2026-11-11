@@ -120,4 +120,4 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
 | 도구 정의 | `src/tools.py:92` | `make_tools` |
 | API 서버 | `src/server.py:20` | `create_app` |
 | 가드레일 판정 | `evaluation/rubric.py:154` | `judge_guardrail` |
-| 평가 실행 | `evaluation/run_eval.py:75` | `main` |
+| 평가 실행 | `evaluation/run_eval.py:76` | `main` |
