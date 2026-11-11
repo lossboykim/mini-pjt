@@ -17,7 +17,7 @@
 추가 패턴(구현 순서: 미들웨어 → MCP 서버 연동 → Supervisor)
 - 미들웨어(`src/middleware.py`, Day 5): LangChain `AgentMiddleware` 훅으로 구현했다. `SummarizationMiddleware`로 긴 대화 이력을 요약하고, `SecretMaskingMiddleware`가 체크포인터에 저장되는 이력의 비밀값을 가리며(LangSmith 트레이스는 익명화 클라이언트로 추적), `RetryMiddleware`가 스로틀링·타임아웃 같은 일시 오류에 지수 백오프로 다시 시도한다. `MiddlewareChain`이 직접 만든 그래프에서 훅을 실행한다.
 - MCP 서버 연동(`src/mcp_server.py`, Day 4): 장애 이력과 서비스 상태 조회를 FastMCP 서버(stdio)로 노출하고, 에이전트가 `langchain-mcp-adapters`의 `MultiServerMCPClient`로 호출한다. 도구 이름과 반환 형식은 로컬 구현과 같고, 어떤 경로로 호출했는지는 trace의 `mcp_call` 단계에 남긴다. 서버 프로세스와 세션은 첫 호출 때 한 번 열어 다시 쓰고(`_SessionWorker`), 끊기면 새로 연다. 서버를 못 쓰면 로컬 구현으로 내려간다.
-- Multi-Agent Supervisor(`src/supervisor.py`, Day 6): 감독자가 구조화 출력(`Route`)으로 다음에 일할 전문 에이전트를 고른다. `runbook_agent`(런북 검색), `ops_agent`(장애 이력·서비스 상태, MCP 경유), `action_agent`(조치 승인 요청)가 각자 자기 도구만 쓴다. 위임 횟수 한도와 연속 재지명 금지는 코드로 지키고, 가드레일·사람 승인·최종 응답은 감독자 바깥 노드에 그대로 둔다.
+- Multi-Agent Supervisor(`src/supervisor.py`, Day 6): 감독자가 구조화 출력(`Route`)으로 다음에 일할 전문 에이전트를 고른다. `runbook_agent`(런북 검색), `ops_agent`(장애 이력·서비스 상태, MCP 경유), `action_agent`(조치 승인 요청)가 각자 자기 도구만 쓴다. 위임 횟수 한도와 재지명 금지(한 질의에서 담당마다 한 번)는 코드로 지키고, 가드레일·사람 승인·최종 응답은 감독자 바깥 노드에 그대로 둔다.
 - Plan-Execute, 장기 메모리: 범위 제외.
 
 1차·2차 평가는 모두 핵심 8개 패턴만 있는 코드에서 측정했고, 추가 패턴 세 개는 그 뒤에 순서대로 붙였다. 응답의 비밀값은 핵심 가드레일이 응답 단계에서 지우며 미들웨어 없이도 동작한다. 세 패턴은 `RunbookAgent(use_middleware=..., use_mcp=..., use_supervisor=...)`로 끌 수 있다.
@@ -35,7 +35,7 @@ POST /query ─▶ guard ─▶ supervisor ─▶ 전문 에이전트(ReAct) ◀
 ```
 - contexts에는 최종 답이 인용한 근거를 담는다: 런북 조각(`runbooks/...#chunk-N`), 장애 이력(`incidents/<ID>`), 서비스 상태(`status/<서비스>`). 근거가 없으면 비운다.
 - 상태·대화 이력은 LangGraph SqliteSaver에 저장한다. 벡터 색인은 커밋하지 않고 `python scripts/build_index.py`로 다시 만든다.
-- 모델: Bedrock `us.anthropic.claude-sonnet-4-5-20250929-v1:0`, 임베딩 `amazon.titan-embed-text-v2:0`(us-east-1).
+- 모델: Bedrock `us.anthropic.claude-sonnet-4-5-20250929-v1:0`, 감독자의 경로 선택만 `us.anthropic.claude-haiku-4-5-20251001-v1:0`, 임베딩 `amazon.titan-embed-text-v2:0`(us-east-1).
 
 ## 4. 실행 방법
 ```
@@ -105,15 +105,15 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
 ## 8. 핵심 코드 위치
 | 항목 | 위치 | 심볼 |
 |---|---|---|
-| 구조화 출력 | `src/agent.py:84` | `FinalAnswer` |
-| 인젝션 가드 정규식 | `src/agent.py:75` | `INJECTION_RE` |
-| 운영 데이터 근거(contexts) | `src/agent.py:143` | `ops_contexts` |
-| 인용 근거 선별 | `src/agent.py:167` | `pick_contexts` |
-| 에이전트 클래스 | `src/agent.py:204` | `RunbookAgent` |
-| 승인 대기(HITL) | `src/agent.py:381` | `_approval` |
-| 최종 응답 | `src/agent.py:405` | `_final` |
-| 질의 진입 | `src/agent.py:467` | `query` |
-| 승인 재개 | `src/agent.py:476` | `approve` |
+| 구조화 출력 | `src/agent.py:87` | `FinalAnswer` |
+| 인젝션 가드 정규식 | `src/agent.py:78` | `INJECTION_RE` |
+| 운영 데이터 근거(contexts) | `src/agent.py:147` | `ops_contexts` |
+| 인용 근거 선별 | `src/agent.py:171` | `pick_contexts` |
+| 에이전트 클래스 | `src/agent.py:238` | `RunbookAgent` |
+| 승인 대기(HITL) | `src/agent.py:421` | `_approval` |
+| 최종 응답 | `src/agent.py:448` | `_final` |
+| 질의 진입 | `src/agent.py:511` | `query` |
+| 승인 재개 | `src/agent.py:520` | `approve` |
 | MCP 세션 재사용 | `src/mcp_server.py:70` | `_SessionWorker` |
 | 쿼리 확장 | `src/retriever.py:143` | `expand_query` |
 | 하이브리드 검색 | `src/retriever.py:156` | `hybrid_search` |

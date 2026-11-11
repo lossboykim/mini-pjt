@@ -36,9 +36,12 @@ from src.tools import (ACTION_TOOLS, INCIDENTS_DB, READ_TOOLS, STATUS_FILE, Acti
                        execute_restart, make_tools)
 
 MODEL_ID = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+# 감독자의 경로 선택(Route)은 짧은 분류라 빠른 모델로 충분하다(호출당 약 3.2초 → 1.2초).
+ROUTER_MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 EMBED_MODEL_ID = "amazon.titan-embed-text-v2:0"
 REGION = "us-east-1"
 MAX_AGENT_STEPS = 6
+WORKER_MAX_TOKENS = 400  # 전문 에이전트 한 번의 출력 길이 한도
 MAX_TEAM_STEPS = 10  # Supervisor를 쓸 때 한 질의에서 전문 에이전트들이 모델을 부르는 총 횟수 한도
 PROMPT_CANARY = "SYSPROMPT-CANARY-7f3a91"
 
@@ -101,6 +104,7 @@ class State(TypedDict, total=False):
     has_incidents: bool
     has_status: bool
     acted: bool
+    approvals: list
     visited: list
     worker: str
 
@@ -176,6 +180,29 @@ def pick_contexts(contexts: list[dict], cited: list[str]) -> list[dict]:
     return pick(runbooks) + pick(ops)
 
 
+ACTION_LABELS = {"restart_service": "재시작"}
+
+
+def approval_record(approvals: list[dict]) -> str:
+    """사람 승인을 거친 조치의 기록을 최종 답 끝에 붙일 문장으로 만든다.
+
+    승인 요청 사실, 사람의 결정, 실제 실행 여부는 모델이 답에 빠뜨릴 수 있으므로(P04) 코드가 상태에서 직접 쓴다.
+    """
+    if not approvals:
+        return ""
+    lines = []
+    for a in approvals:
+        what = f"{a['service']} {ACTION_LABELS.get(a['action'], a['action'])}"
+        if a["decision"] == "approve" and a["executed"]:
+            result = "사람이 승인(approve)해 실행했습니다"
+        elif a["decision"] == "approve":
+            result = "사람이 승인(approve)했지만 대상 서비스를 찾지 못해 실행하지 않았습니다"
+        else:
+            result = "사람이 거부(reject)해 실행하지 않았습니다"
+        lines.append(f"- {what}: 실행 전에 사람에게 승인을 요청했고, {result}.")
+    return "\n\n**승인 기록**\n" + "\n".join(lines)
+
+
 def _scrub(value: Any) -> Any:
     """응답 직전 마지막 방어선: 비밀값과 시스템 프롬프트 표식을 지운다."""
     if isinstance(value, str):
@@ -194,6 +221,13 @@ def default_llm():
     return ChatBedrockConverse(model=MODEL_ID, region_name=REGION, temperature=0)
 
 
+def default_router_llm():
+    from dotenv import load_dotenv
+    from langchain_aws import ChatBedrockConverse
+    load_dotenv()
+    return ChatBedrockConverse(model=ROUTER_MODEL_ID, region_name=REGION, temperature=0)
+
+
 def default_embeddings():
     from dotenv import load_dotenv
     from langchain_aws import BedrockEmbeddings
@@ -204,7 +238,9 @@ def default_embeddings():
 class RunbookAgent:
     def __init__(self, llm=None, embeddings=None, state_dir=None, docs_dir=None,
                  incidents_db=None, status_file=None, index_dir=None, log_dir=None,
-                 use_middleware=True, use_mcp=True, use_supervisor=True):
+                 use_middleware=True, use_mcp=True, use_supervisor=True, router_llm=None):
+        # 감독자 모델: 지정값 > 모델을 직접 넘겼으면 그 모델(테스트) > 기본 빠른 모델
+        self.router_llm = router_llm or (llm if llm is not None else (default_router_llm() if use_supervisor else None))
         self.llm = llm or default_llm()
         # 미들웨어(Day 5): 이력 요약, 저장 이력 마스킹, 모델 호출 재시도
         self.middleware = build_middleware(self.llm) if use_middleware else None
@@ -227,7 +263,11 @@ class RunbookAgent:
         self._llm_tools = self.llm.bind_tools(self.tools)
         # Multi-Agent Supervisor(Day 6): 감독자가 역할별 전문 에이전트에게 일을 맡긴다. 전문 에이전트는 자기 도구만 본다.
         self.use_supervisor = use_supervisor
-        self._worker_llms = {name: self.llm.bind_tools(worker_tools(name, self.tools)) for name in WORKERS}
+        # 전문 에이전트의 출력은 도구 호출(약 50~110토큰)과 감독자용 짧은 보고뿐이라 길이를 제한한다.
+        # 보고는 감독자에게 앞 300자만 넘어가는데, 제한이 없으면 런북 담당이 절차를 900토큰까지 옮겨 적었다.
+        worker_llm = (self.llm.model_copy(update={"max_tokens": WORKER_MAX_TOKENS})
+                      if hasattr(self.llm, "max_tokens") else self.llm)
+        self._worker_llms = {name: worker_llm.bind_tools(worker_tools(name, self.tools)) for name in WORKERS}
         self._conn = sqlite3.connect(self.state_dir / "checkpoints.sqlite", check_same_thread=False)
         self.graph = self._build_graph(SqliteSaver(self._conn))
         self._lock = threading.Lock()
@@ -280,7 +320,7 @@ class RunbookAgent:
         q = self._last_question(state)
         history = _step("load_history", {"thread_messages": "checkpoint"}, {"loaded_messages": max(len(state["messages"]) - 1, 0)})
         reset = {"contexts": [], "steps": 0, "pending": [], "has_incidents": False,
-                 "has_status": False, "acted": False, "blocked": False, "visited": [], "worker": ""}
+                 "has_status": False, "acted": False, "approvals": [], "blocked": False, "visited": [], "worker": ""}
         head = [history]
         if self.middleware is not None:
             # 턴이 시작될 때 before_model 훅을 돌린다: 저장 이력의 비밀값을 가리고, 이력이 길면 요약으로 줄인다.
@@ -299,7 +339,7 @@ class RunbookAgent:
         """감독자: 다음에 일할 전문 에이전트를 고르거나 FINISH로 최종 응답 단계에 넘긴다."""
         visited = list(state.get("visited", []))
         wrap = self.middleware.call_model if self.middleware is not None else None
-        route = choose_next(self.llm, state["messages"], visited, invoke=wrap)
+        route = choose_next(self.router_llm, state["messages"], visited, invoke=wrap)
         trace = list(state["trace"]) + [_step("supervisor", {"visited": visited}, {"next": route.next, "reason": route.reason})]
         if route.next == FINISH:
             return {"worker": "", "trace": trace}
@@ -385,6 +425,7 @@ class RunbookAgent:
         decisions = [interrupt({"action": c["name"], "args": c["args"]}) for c in pending]
         trace = list(state["trace"])
         msgs = []
+        approvals = list(state.get("approvals", []))
         executed_any = False
         for call, decision in zip(pending, decisions):
             service = str(call["args"].get("service", ""))
@@ -400,7 +441,9 @@ class RunbookAgent:
             # (평가의 expected_tools 판정은 이 단계로 호출 여부를 본다. 실행 여부는 output의 executed와 실행 로그가 말한다.)
             trace.append(_step(f"tool:{call['name']}", call["args"], {"decision": decision, **result}))
             msgs.append(ToolMessage(json.dumps(result, ensure_ascii=False), tool_call_id=call["id"], name=call["name"]))
-        return {"messages": msgs, "trace": trace, "pending": [], "acted": True}
+            approvals.append({"action": call["name"], "service": service, "decision": decision,
+                              "executed": bool(result["executed"])})
+        return {"messages": msgs, "trace": trace, "pending": [], "acted": True, "approvals": approvals}
 
     def _final(self, state: State) -> dict:
         skipped = self._close_unanswered_tool_calls(state)
@@ -414,10 +457,11 @@ class RunbookAgent:
         trace = list(state["trace"])
         if grounded:
             picked = pick_contexts(contexts, res.cited_doc_ids)
+            answer = res.answer + approval_record(state.get("approvals", []))
             trace.append(_step("final_response", "structured_output",
-                               {**res.model_dump(), "grounded": True, "refused": False,
+                               {**res.model_dump(), "answer": answer, "grounded": True, "refused": False,
                                 "cited_doc_ids": [c["doc_id"] for c in picked]}))
-            return {"answer": res.answer, "contexts": picked, "trace": trace}
+            return {"answer": answer, "contexts": picked, "trace": trace}
         trace.append(_step("final_response", "structured_output", {**res.model_dump(), "answer": NO_EVIDENCE_ANSWER, "grounded": False,
                                                                      "cited_doc_ids": [], "refused": False}))
         trace.append(_step("no_evidence", "grounded=false", "런북에 근거 없음: contexts 비움, 절차 미생성"))

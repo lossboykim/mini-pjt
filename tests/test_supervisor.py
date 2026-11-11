@@ -57,6 +57,16 @@ def test_choose_next_never_reassigns_the_worker_that_just_ran():
     assert route.next == FINISH
 
 
+def test_choose_next_never_reassigns_a_worker_that_already_ran():
+    # 런북 -> 운영 데이터 다음에 모델이 런북 담당을 다시 골라도 끝낸다(한 질의에서 담당마다 한 번만).
+    route = choose_next(StubRouter("runbook_agent"), [HumanMessage("q")], ["runbook_agent", "ops_agent"])
+    assert route.next == FINISH
+    llm = StubRouter("action_agent")
+    assert choose_next(llm, [HumanMessage("q")], ["runbook_agent", "ops_agent"]).next == "action_agent"
+    every = StubRouter("runbook_agent")
+    assert choose_next(every, [HumanMessage("q")], list(WORKERS)).next == FINISH and every.requests == []
+
+
 def test_choose_next_uses_the_invoke_wrapper_when_given():
     seen = []
 
@@ -93,3 +103,10 @@ def test_route_rejects_unknown_worker():
     from pydantic import ValidationError
     with pytest.raises(ValidationError):
         Route(next="unknown_agent", reason="x")
+
+
+def test_worker_prompt_asks_for_a_short_report():
+    from src.supervisor import WORKER_REPORT_RULE, WORKERS, worker_system_prompt
+    for name in WORKERS:
+        prompt = worker_system_prompt("BASE", name)
+        assert prompt.startswith("BASE") and WORKER_REPORT_RULE in prompt

@@ -111,3 +111,18 @@ def test_tool_calls_cut_off_by_the_step_limit_get_closing_results():
     closing = RunbookAgent._close_unanswered_tool_calls({"messages": [HumanMessage("q"), AIMessage("", tool_calls=[call])]})
     assert [type(m) for m in closing] == [ToolMessage] and closing[0].tool_call_id == "c1"
     assert RunbookAgent._close_unanswered_tool_calls({"messages": [HumanMessage("q"), AIMessage("끝")]}) == []
+
+
+def test_worker_models_get_an_output_cap_but_final_answer_does_not(tmp_path):
+    from src.agent import WORKER_MAX_TOKENS
+
+    class CappableChat(TeamFakeChat):
+        max_tokens: int | None = None
+
+    llm = CappableChat()
+    agent = RunbookAgent(llm=llm, embeddings=FakeEmbeddings(), state_dir=tmp_path / "s", use_mcp=False)
+    try:
+        assert all(w.max_tokens == WORKER_MAX_TOKENS for w in agent._worker_llms.values())
+        assert agent.llm.max_tokens is None  # 최종 응답과 리랭킹은 길이 제한이 없다
+    finally:
+        agent.close()

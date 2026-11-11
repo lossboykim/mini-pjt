@@ -99,3 +99,22 @@ def test_approve_unknown_thread_and_bad_decision(client, agent):
     r = ask(client)
     assert client.post("/approve", json={"thread_id": r["thread_id"], "decision": "yes"}).status_code == 422
     assert agent.action_log.read() == []
+
+
+def test_final_answer_always_carries_the_approval_record(client):
+    # 모델이 답에 빠뜨려도 승인 요청 사실, 사람의 결정, 실행 여부가 답 끝에 코드로 붙는다(P04).
+    done = decide(client, ask(client)["thread_id"], "approve")
+    assert "**승인 기록**" in done["answer"]
+    assert "order-worker 재시작: 실행 전에 사람에게 승인을 요청했고, 사람이 승인(approve)해 실행했습니다." in done["answer"]
+    rejected = decide(client, ask(client, "payment-api 재시작해줘")["thread_id"], "reject")
+    assert "payment-api 재시작: 실행 전에 사람에게 승인을 요청했고, 사람이 거부(reject)해 실행하지 않았습니다." in rejected["answer"]
+    # 조치가 없던 질의에는 붙지 않는다
+    plain = ask(client, "payment-api가 DB 연결 타임아웃이 나. 대응 절차 알려줘")
+    assert "승인 기록" not in plain["answer"]
+
+
+def test_approval_record_wording():
+    from src.agent import approval_record
+    assert approval_record([]) == ""
+    missing = approval_record([{"action": "restart_service", "service": "nope", "decision": "approve", "executed": False}])
+    assert "찾지 못해 실행하지 않았습니다" in missing

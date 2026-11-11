@@ -36,8 +36,9 @@ WORKERS: dict[str, WorkerSpec] = {
         name="runbook_agent",
         role="런북 검색 담당. 증상에 맞는 런북의 진단 절차와 조치 절차를 찾는다.",
         tools=("retrieve_runbook",),
-        prompt=("너는 런북 검색 담당이다. retrieve_runbook으로 증상에 맞는 런북을 찾아 진단 절차와 조치 절차를 "
-                "정리한다. 런북에 없는 내용은 없다고 말한다. 운영 데이터 조회와 조치 실행은 다른 담당의 일이다."),
+        prompt=("너는 런북 검색 담당이다. retrieve_runbook으로 증상에 맞는 런북을 찾는다. 찾은 런북의 절차는 "
+                "최종 답 단계가 도구 결과로 안내하므로 옮겨 적지 않는다. 런북에 없으면 없다고 보고한다. "
+                "운영 데이터 조회와 조치 실행은 다른 담당의 일이다."),
     ),
     "ops_agent": WorkerSpec(
         name="ops_agent",
@@ -77,7 +78,7 @@ SUPERVISOR_PROMPT = (
     "찾아보게 하고, 런북을 찾지 못했더라도 조치 요청은 action_agent에게 넘겨 사람의 승인을 받게 한다.\n"
     "4. 필요한 정보가 모였거나, 운영 장애와 무관한 질의이거나, 조치 요청이 아닌데 런북에서 근거를 찾지 못했으면 "
     "FINISH를 고른다.\n"
-    "5. 방금 일한 에이전트에게 연달아 다시 맡기지 않는다."
+    "5. 이미 일한 에이전트에게는 다시 맡기지 않는다. 런북을 더 찾아야 하면 runbook_agent가 자기 차례에 여러 번 검색한다."
 )
 
 
@@ -111,23 +112,33 @@ def build_request(messages: list, visited: list[str]) -> list:
 
 
 def choose_next(llm, messages: list, visited: list[str], invoke=None) -> Route:
-    """다음에 일할 에이전트를 고른다. 횟수 제한과 연속 재지명 금지는 모델 판단과 무관하게 코드로 지킨다.
+    """다음에 일할 에이전트를 고른다. 횟수 제한과 재지명 금지는 모델 판단과 무관하게 코드로 지킨다.
+
+    한 질의에서 같은 에이전트는 한 번만 일한다. 다시 맡기면 모델 호출이 네댓 번 늘어 응답이 20초 이상 느려진다.
 
     invoke: 모델 호출을 감싸는 함수(재시도 미들웨어용). 없으면 그대로 호출한다.
     """
     if len(visited) >= MAX_HANDOFFS:
         return Route(next=FINISH, reason=f"한 질의의 위임 한도({MAX_HANDOFFS}회)에 도달했다")
+    if set(WORKERS) <= set(visited):
+        return Route(next=FINISH, reason="모든 전문 에이전트가 일을 마쳤다")
     request = build_request(messages, visited)
     runnable = llm.with_structured_output(Route)
     route = invoke(request, runnable.invoke) if invoke else runnable.invoke(request)
-    if route.next != FINISH and visited and visited[-1] == route.next:
-        return Route(next=FINISH, reason=f"{route.next}가 방금 일했으므로 연달아 맡기지 않는다")
+    if route.next != FINISH and route.next in visited:
+        return Route(next=FINISH, reason=f"{route.next}는 이미 일했으므로 다시 맡기지 않는다")
     return route
+
+
+# 전문 에이전트의 마무리 보고는 감독자가 다음 담당을 고르는 데만 쓰인다(digest가 앞 300자만 넘긴다).
+# 사용자에게 줄 답은 final 노드가 도구 결과로 따로 쓰므로, 길게 정리하면 시간만 든다(질의당 약 20초).
+WORKER_REPORT_RULE = ("도구 결과를 받은 뒤 더 부를 도구가 없으면, 무엇을 찾았는지(또는 찾지 못했는지)를 두 문장 이내로만 "
+                      "보고하고 끝낸다. 절차나 수치를 옮겨 적지 않는다. 사용자에게 줄 최종 답은 다른 단계가 쓴다.")
 
 
 def worker_system_prompt(base_prompt: str, worker: str) -> str:
     spec = WORKERS[worker]
-    return f"{base_prompt}\n\n[전문 에이전트: {spec.name}] {spec.prompt}"
+    return f"{base_prompt}\n\n[전문 에이전트: {spec.name}] {spec.prompt}\n{WORKER_REPORT_RULE}"
 
 
 def worker_tools(worker: str, tools: list) -> list:
