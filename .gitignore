@@ -5,3 +5,6 @@ state/
 index/
 .venv-eval/
 logs/
+.venv/
+.claude/settings.local.json
+sds-ax-training/
