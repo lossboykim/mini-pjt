@@ -1,0 +1,8 @@
+{
+  "web-frontend": {"status": "degraded", "pods_ready": "1/3", "restarts_last_hour": 14, "error_rate_pct": 6.2, "p95_latency_ms": 480, "last_deploy": "2026-11-11T01:20:00Z", "note": "CrashLoopBackOff 파드 2개"},
+  "api-gateway": {"status": "degraded", "pods_ready": "3/3", "restarts_last_hour": 0, "error_rate_pct": 3.1, "p95_latency_ms": 2300, "last_deploy": "2026-11-09T10:00:00Z", "note": "502 간헐 발생, 지연 증가"},
+  "payment-api": {"status": "degraded", "pods_ready": "4/4", "restarts_last_hour": 1, "error_rate_pct": 8.4, "p95_latency_ms": 1250, "last_deploy": "2026-11-11T00:40:00Z", "note": "에러율 평소의 6배"},
+  "order-worker": {"status": "unhealthy", "pods_ready": "0/2", "restarts_last_hour": 9, "error_rate_pct": 0.0, "p95_latency_ms": 0, "last_deploy": "2026-11-08T14:00:00Z", "note": "OOMKilled 반복"},
+  "user-service": {"status": "healthy", "pods_ready": "3/3", "restarts_last_hour": 0, "error_rate_pct": 0.2, "p95_latency_ms": 90, "last_deploy": "2026-11-05T09:00:00Z", "note": ""},
+  "inventory-api": {"status": "healthy", "pods_ready": "2/2", "restarts_last_hour": 0, "error_rate_pct": 0.1, "p95_latency_ms": 70, "last_deploy": "2026-11-03T09:00:00Z", "note": ""}
+}
