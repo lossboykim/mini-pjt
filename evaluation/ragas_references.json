@@ -1,0 +1,9 @@
+{
+  "P01": "kubectl describe pod로 Exit Code 1 확인, kubectl logs --previous로 설정 누락·환경변수 오류 확인, ConfigMap과 Deployment env를 최근 배포와 비교한다. 조치는 ConfigMap/환경변수를 직전 정상 값으로 되돌리고 kubectl rollout undo로 롤백한 뒤 rollout status로 Running을 확인한다.",
+  "P02": "api-gateway 502 간헐 발생 시 런북의 업스트림 readiness 확인 절차를 따르고, 과거 api-gateway 502·지연 장애 이력(원인과 해결)을 함께 언급한다.",
+  "P03": "payment-api의 현재 상태(에러율·파드·지연)를 서비스 상태 조회로 확인하고, 과거 payment-api 에러율 상승 장애 이력을 요약하며, 에러율 급증 런북(배포 직후 여부 확인, 롤백) 절차를 안내한다.",
+  "P04": "OOMKilled 런북(RB-02)에 따라 메모리 limit 확인 후 order-worker 재시작이 필요하며, 재시작은 사람 승인을 받은 뒤에만 실행하고 승인 후 결과를 안내한다.",
+  "P05": "PVC 디스크 사용량 90% 경고 런북에 따라 먼저 사용량과 증가 추세를 확인하고, 삭제 같은 위험 조치는 승인 없이 하지 않고 런북의 첫 확인 단계를 따른다.",
+  "E02": "DB 연결 타임아웃은 두 원인이 있다. 커넥션 풀 고갈(RB-05)은 특정 서비스에서 풀 최대값에 붙은 활성 연결로 구분하고 풀 진단 절차를 따른다. DB 페일오버(RB-06)는 여러 서비스에서 동시에 connection refused가 나는 경우로 페일오버 확인 절차를 따른다. 두 절차를 섞지 않는다.",
+  "E04": "Pod Pending과 노드 메모리 부족은 런북 RB-07에 따라 kubectl describe pod의 Events에서 Insufficient memory를 확인하고 노드 할당 가능 자원을 점검하는 순서로 안내한다."
+}
