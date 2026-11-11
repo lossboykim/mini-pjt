@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -56,6 +57,19 @@ WORKERS: dict[str, WorkerSpec] = {
                 "호출은 실행이 아니라 승인 요청이며, 실행 여부는 사람이 정한다. 승인 결과와 실행 여부를 그대로 전한다."),
     ),
 }
+
+# 사용자가 조치(지금은 재시작 하나)를 요청했는지. 감독자 모델이 조치 요청이 없는 질의를 조치 담당에게 넘긴 일이 있어
+# (8차 3회 P03, Haiku 감독자) 모델 판단과 별도로 코드가 확인한다.
+ACTION_REQUEST_RE = re.compile(r"재시작|재기동|리스타트|restart|다시\s*(시작|띄워|올려)|롤링\s*재", re.IGNORECASE)
+
+
+def user_question(messages: list) -> str:
+    """감독자 지시(handoff)를 뺀 마지막 사용자 질문."""
+    for m in reversed(messages):
+        if isinstance(m, HumanMessage) and not m.additional_kwargs.get("handoff"):
+            return str(m.content)
+    return ""
+
 
 NextWorker = Literal["runbook_agent", "ops_agent", "action_agent", "FINISH"]
 
@@ -127,6 +141,8 @@ def choose_next(llm, messages: list, visited: list[str], invoke=None) -> Route:
     route = invoke(request, runnable.invoke) if invoke else runnable.invoke(request)
     if route.next != FINISH and route.next in visited:
         return Route(next=FINISH, reason=f"{route.next}는 이미 일했으므로 다시 맡기지 않는다")
+    if route.next == "action_agent" and not ACTION_REQUEST_RE.search(user_question(messages)):
+        return Route(next=FINISH, reason="사용자가 조치를 요청하지 않았으므로 조치 담당에게 넘기지 않는다")
     return route
 
 

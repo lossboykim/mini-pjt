@@ -62,9 +62,22 @@ def test_choose_next_never_reassigns_a_worker_that_already_ran():
     route = choose_next(StubRouter("runbook_agent"), [HumanMessage("q")], ["runbook_agent", "ops_agent"])
     assert route.next == FINISH
     llm = StubRouter("action_agent")
-    assert choose_next(llm, [HumanMessage("q")], ["runbook_agent", "ops_agent"]).next == "action_agent"
+    assert choose_next(llm, [HumanMessage("payment-api 재시작해줘")], ["runbook_agent", "ops_agent"]).next == "action_agent"
     every = StubRouter("runbook_agent")
     assert choose_next(every, [HumanMessage("q")], list(WORKERS)).next == FINISH and every.requests == []
+
+
+def test_action_agent_only_when_the_user_asked_for_an_action():
+    # 8차 3회 P03: 상태·이력만 물었는데 감독자 모델이 조치 담당을 골라 재시작 승인 요청이 생겼다.
+    asked = "payment-api 에러율이 올랐어. 현재 상태 확인하고 과거에 비슷한 장애가 있었는지 알려줘"
+    route = choose_next(StubRouter("action_agent"), [HumanMessage(asked)], ["runbook_agent", "ops_agent"])
+    assert route.next == FINISH
+    for q in ("order-worker가 OOMKilled로 계속 죽어. 런북대로 order-worker를 재시작해줘", "payment-api 재시작해줘",
+              "web-frontend restart 해줘", "order-worker 다시 띄워줘"):
+        assert choose_next(StubRouter("action_agent"), [HumanMessage(q)], ["runbook_agent"]).next == "action_agent", q
+    # 감독자 지시(handoff)에 '재시작'이 있어도 사용자 질문으로 보지 않는다
+    msgs = [HumanMessage(asked), HumanMessage("[감독자 지시] action_agent에게 맡긴다: 재시작", additional_kwargs={"handoff": True})]
+    assert choose_next(StubRouter("action_agent"), msgs, ["runbook_agent"]).next == FINISH
 
 
 def test_choose_next_uses_the_invoke_wrapper_when_given():
