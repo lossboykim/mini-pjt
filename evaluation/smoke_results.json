@@ -1,9 +1,6 @@
 {
-  "measured_commit": "e4d9b10aaa0f11903dc6d97dec5b0350abd76b6c",
-  "worktree_dirty_paths": [
-    " M src/agent.py",
-    " M src/retriever.py"
-  ],
+  "measured_commit": "2c09228ed8581d84fa01b717b108f8e2c0438154",
+  "worktree_dirty_paths": [],
   "checks": [
     {
       "name": "POST /query 응답 다섯 필드와 항목 형태",
