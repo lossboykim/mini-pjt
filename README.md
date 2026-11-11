@@ -50,6 +50,11 @@ curl -X POST localhost:8000/query -H "Content-Type: application/json" -d '{"ques
 curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"thread_id": "<id>", "decision": "approve"}'
 ```
 - 웹 화면: 서버를 띄운 뒤 브라우저로 `http://localhost:8000/`을 연다. 질의·답변, 근거(contexts)와 처리 과정(trace) 펼쳐 보기, 조치 승인·거절 버튼, 서비스 상태(`GET /services`)와 조치 실행 기록(`GET /actions`) 패널이 있다. 화면은 `src/static/index.html` 한 파일이고 외부 라이브러리를 쓰지 않는다.
+  - 참고한 서비스: incident.io Investigations(원인·근거·다음 단계와 근거 출처), Komodor Klaudia(조사 단계를 차례로 보여 주고 최근 변경을 강조, 조치는 사람이 결정), PagerDuty Operations Console·SRE Agent(서비스 상태·런북·승인을 한 화면에서, 위험 조치 앞의 승인 단계).
+  - 조사 진행: `POST /query/stream`·`/approve/stream`으로 감독자 배정, 런북 검색, 이력·상태 조회, 승인 대기를 끝나는 즉시 보여 준다. 답에는 조사 경로와 걸린 시간이 붙는다.
+  - 근거 칩: 답 아래에 런북·이력·상태·조치 근거를 종류별 칩으로 보여 주고, 누르면 원문으로 이동한다. 코드 블록에는 복사 버튼이 있다.
+  - 승인 카드: 대상 서비스의 현재 상태를 함께 보여 주고, 승인은 버튼을 두 번 눌러야 실행된다.
+  - 사이드 패널: 서비스를 심각한 순으로 정렬하고 상태별 개수와 24시간 안의 배포를 표시한다(30초마다 갱신, 누르면 그 서비스 조사 질문을 써 준다). 최근 장애 이력(`GET /incidents`)을 펼쳐 원인·조치를 보고 비슷한지 물을 수 있다. 헤더에 지금 쓰는 모델(`GET /models`)과 일일 한도 대체 여부를 표시한다.
 - 테스트(Bedrock 호출 없음, 가짜 모델): `python -m pytest tests -q`
 - 평가: `python evaluation/run_eval.py --round <N>`(같은 코드를 반복 측정하면 `--run <K>`), RAGAS는 `evaluation/requirements-eval.txt`로 만든 `.venv-eval`에서 `evaluation/run_ragas.py --round <N>`
 - MCP 서버는 에이전트가 필요할 때 `python -m src.mcp_server`를 stdio로 직접 띄운다. 따로 실행할 필요는 없다.

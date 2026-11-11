@@ -110,7 +110,50 @@
   .log .when { color: var(--muted); font-size: 11.5px; }
   .empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
 
+  /* ---- 조사 진행(실시간 단계), 근거 칩, 승인 확인, 이력·모델 표시 ---- */
+  .badge.no_evidence, .badge.blocked { color: var(--bad); background: color-mix(in srgb, var(--bad) 11%, transparent); }
+  .meta .path { font-size: 12px; color: var(--muted); }
+  .meta .path b { color: var(--text); font-weight: 600; }
+  .meta .sep { flex: 1; }
+  .progress { background: var(--panel); border: 1px dashed color-mix(in srgb, var(--brand) 45%, var(--line)); border-radius: 2px; padding: 14px 18px; max-width: 880px; }
+  .progress .head { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 13.5px; }
+  .progress .head .timer { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; margin-left: auto; }
+  .progress ol { list-style: none; margin: 10px 0 0; padding: 0; }
+  .progress li { display: flex; gap: 10px; align-items: baseline; font-size: 13px; padding: 3px 0; color: var(--muted); }
+  .progress li::before { content: "✓"; color: var(--ok); font-weight: 700; width: 14px; flex: none; }
+  .progress li.now { color: var(--text); font-weight: 600; }
+  .progress li.now::before { content: ""; width: 10px; height: 10px; margin: 0 2px; border: 2px solid var(--line); border-top-color: var(--brand); border-radius: 50%; animation: spin .8s linear infinite; align-self: center; }
+  .progress li.alert::before { content: "!"; color: var(--warn); }
+  .progress li .sub { color: var(--muted); font-weight: 400; font-size: 12px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .chip { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-weight: 500; }
+  .chip .k { font-weight: 700; margin-right: 4px; }
+  .chip.runbook .k { color: var(--brand); } .chip.incident .k { color: var(--warn); } .chip.status .k { color: var(--ok); } .chip.action .k { color: var(--bad); }
+  .ctx.flash { animation: flash 1.4s ease-out; }
+  @keyframes flash { from { background: color-mix(in srgb, var(--brand) 16%, transparent); } to { background: transparent; } }
+  pre { position: relative; }
+  pre .copy { position: absolute; top: 6px; right: 6px; font-size: 11px; padding: 2px 8px; opacity: .85; }
+  .approval .target { margin: 8px 0 0; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); font-size: 12.5px; }
+  .approval .warnline { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+  .approval button.armed { background: var(--bad); border-color: var(--bad); color: #fff; }
+  .summary { display: flex; gap: 12px; font-size: 12px; color: var(--muted); padding: 10px 0 2px; }
+  .summary b { font-weight: 700; }
+  .svc { cursor: pointer; } .svc:hover .name { color: var(--brand); }
+  .svc.unhealthy { box-shadow: inset 3px 0 0 var(--bad); padding-left: 10px; } .svc.degraded { box-shadow: inset 3px 0 0 var(--warn); padding-left: 10px; }
+  .tag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 0 6px; margin-left: 6px; border-radius: 2px; color: var(--brand); background: color-mix(in srgb, var(--brand) 12%, transparent); }
+  .inc { padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+  .inc summary { color: var(--text); font-weight: 500; font-size: 12.5px; list-style: none; cursor: pointer; }
+  .inc summary::-webkit-details-marker { display: none; }
+  .inc .sev { font-size: 10.5px; font-weight: 800; text-transform: uppercase; margin-right: 6px; }
+  .inc .sev.critical, .inc .sev.high { color: var(--bad); } .inc .sev.medium { color: var(--warn); } .inc .sev.low { color: var(--muted); }
+  .inc .body { color: var(--muted); margin-top: 6px; font-size: 12px; }
+  .inc .body button { margin-top: 6px; font-size: 11.5px; padding: 3px 9px; }
+  .inc details { margin: 0; border: 0; padding: 0; }
+  .model { font-size: 11.5px; color: var(--muted); border: 1px solid var(--line); padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+  .model.switched { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
+
   @media (max-width: 860px) {
+    .model { display: none; }
     header { padding: 0 16px; }
     .brand h1 { display: none; }
     .layout { grid-template-columns: 1fr; height: auto; }
@@ -125,6 +168,7 @@
 <header>
   <div class="brand"><span class="mark">Runbook AI</span><h1>런북 대응 어시스턴트</h1></div>
   <span class="spacer"></span>
+  <span class="model" id="modelLabel" title="지금 쓰는 Bedrock 모델">모델 확인 중</span>
   <span class="thread" id="threadLabel">새 대화</span>
   <button class="ghost" id="newChat" type="button">새 대화</button>
 </header>
@@ -147,7 +191,12 @@
   <aside>
     <section>
       <h3>Service Status <button type="button" id="refreshSvc">새로고침</button></h3>
+      <div class="summary" id="svcSummary"></div>
       <div id="services"><div class="empty">불러오는 중…</div></div>
+    </section>
+    <section>
+      <h3>Recent Incidents</h3>
+      <div id="incidents"><div class="empty">불러오는 중…</div></div>
     </section>
     <section>
       <h3>Action Log <button type="button" id="refreshLog">새로고침</button></h3>
@@ -225,56 +274,173 @@ function setBusy(b) {
   $("hint").textContent = waitingApproval ? "승인 대기 중인 조치가 있습니다. 위의 승인 또는 거절을 먼저 선택하세요." : "";
 }
 
+// ---- 조사 진행 단계 이름: trace의 step을 사람이 읽는 문장으로. null이면 화면에 보이지 않는다(중복·내부 단계). ----
+const WORKER_LABEL = { runbook_agent: "런북 담당", ops_agent: "운영 데이터 담당", action_agent: "조치 담당", FINISH: "정리" };
+const TOOL_LABEL = { retrieve_runbook: "런북 검색", search_incidents: "과거 장애 이력 조회", get_service_status: "서비스 상태 조회", restart_service: "재시작" };
+let services = {};        // 서비스 보드 캐시(승인 카드에 대상의 현재 상태를 보여 줄 때 쓴다)
+
+function stepLabel(t) {
+  const o = t.output, i = t.input;
+  switch (t.step) {
+    case "load_history": return ["대화 이력 확인", ""];
+    case "guard": return String(o).startsWith("blocked") ? ["입력 안전 검사", "지시 무시·프롬프트 노출 요구라 거부", "alert"] : ["입력 안전 검사", "통과"];
+    case "supervisor": return o && o.next ? (o.next === "FINISH" ? ["감독자: 조사 정리", o.reason || ""] : [`감독자: ${WORKER_LABEL[o.next] || o.next}에게 배정`, o.reason || ""]) : null;
+    case "query_expansion": return ["검색어 확장", o && o.queries ? `${o.queries.length}개 표현` : ""];
+    case "hybrid_search": return ["런북 하이브리드 검색", "BM25 + 벡터"];
+    case "rerank": return ["후보 재채점", ""];
+    case "tool_call": {
+      const tool = i && i.tool, name = TOOL_LABEL[tool] || tool;
+      if (tool === "retrieve_runbook") return [name, o && o.doc_ids ? `런북 조각 ${o.doc_ids.length}개` : ""];
+      if (tool === "search_incidents") return [name, o && o.incidents ? `${o.incidents.length}건` : ""];
+      if (tool === "get_service_status") return [name, (i.args || {}).service === "all" ? "전체 서비스" : `${(i.args || {}).service} · ${o && o.status ? o.status : "찾지 못함"}`];
+      if (tool === "restart_service") return [`${name} 실행`, o && o.executed ? "실행함" : "실행하지 않음"];
+      return [name, ""];
+    }
+    case "approval_wait": return [`사람 승인 대기: ${TOOL_LABEL[i.tool] || i.tool}`, (i.args || {}).service || "", "alert"];
+    case "final_response": return ["최종 답 작성", ""];
+    case "no_evidence": return ["근거 없음", "절차를 만들지 않음", "alert"];
+    default: return null;   // agent, mcp_call, tool:<이름>, middleware
+  }
+}
+
+function progressCard(title) {
+  const el = addEl("progress", `<div class="head">${esc(title)}<span class="timer">0초</span></div><ol aria-live="polite"></ol>`);
+  el.classList.remove("msg");
+  const t0 = Date.now();
+  const timer = setInterval(() => { el.querySelector(".timer").textContent = Math.round((Date.now() - t0) / 1000) + "초"; }, 1000);
+  const ol = el.querySelector("ol");
+  const now = document.createElement("li"); now.className = "now"; now.textContent = "진행 중…"; ol.appendChild(now);
+  return {
+    add(step) {
+      const l = stepLabel(step); if (!l) return;
+      const li = document.createElement("li");
+      if (l[2]) li.className = l[2];
+      li.innerHTML = `${esc(l[0])}${l[1] ? ` <span class="sub">${esc(l[1])}</span>` : ""}`;
+      ol.insertBefore(li, now); scrollDown();
+    },
+    stop() { clearInterval(timer); el.remove(); return Math.round((Date.now() - t0) / 1000); },
+  };
+}
+
+// NDJSON 스트림을 읽어 단계마다 onStep을 부르고, 마지막 응답(/query·/approve와 같은 형식)을 돌려준다.
+async function streamCall(path, body, onStep) {
+  const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.detail || `요청 실패 (HTTP ${res.status})`); }
+  const reader = res.body.getReader(), dec = new TextDecoder();
+  let buf = "", result = null;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let n;
+    while ((n = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, n).trim(); buf = buf.slice(n + 1);
+      if (!line) continue;
+      const ev = JSON.parse(line);
+      if (ev.type === "start" && ev.thread_id) setThread(ev.thread_id);
+      else if (ev.type === "step") onStep(ev.step);
+      else if (ev.type === "result") result = ev.response;
+      else if (ev.type === "error") throw new Error(ev.message);
+    }
+  }
+  if (!result) throw new Error("응답이 중간에 끊겼습니다. 다시 시도해 주세요.");
+  return result;
+}
+
 function pendingActions(trace) {
-  // 마지막 응답 단계 이후의 승인 대기 단계만 모은다.
   const waits = [];
   for (const t of trace || []) if (t.step === "approval_wait") waits.push(t.input || {});
   return waits;
 }
 
-function renderResponse(r) {
-  let html = `<div class="meta"><span class="badge ${esc(r.status)}">${esc(STATUS_LABEL[r.status] || r.status)}</span></div>`;
-  html += `<div class="answer">${md(r.answer || "")}</div>`;
+// 근거 doc_id → 칩(종류, 이름)
+function chipOf(id) {
+  let m;
+  if ((m = id.match(/^runbooks\/(rb-\d+)[^#]*#chunk-(\d+)$/i))) return ["runbook", "런북", `${m[1].toUpperCase()} · ${Number(m[2]) + 1}`];
+  if ((m = id.match(/^incidents\/(.+)$/))) return ["incident", "이력", m[1]];
+  if ((m = id.match(/^status\/(.+)$/))) return ["status", "상태", m[1] === "all" ? "전체 서비스" : m[1]];
+  if ((m = id.match(/^actions\/([^/]+)\/(.+)$/))) return ["action", "조치", `${m[2]} ${TOOL_LABEL[m[1]] || m[1]}`];
+  return ["runbook", "근거", id];
+}
+
+function svcLine(s) {
+  return `${esc(s.status)} · 파드 ${esc(s.pods_ready)} · 재시작 ${esc(s.restarts_last_hour)}회/시간 · 에러율 ${esc(s.error_rate_pct)}% · p95 ${esc(s.p95_latency_ms)}ms`;
+}
+
+function renderResponse(r, info = {}) {
+  const trace = r.trace || [];
+  const steps = trace.map((t) => t.step);
+  let kind = r.status, label = STATUS_LABEL[r.status] || r.status;
+  if (steps.includes("no_evidence")) { kind = "no_evidence"; label = "근거 없음"; }
+  if (trace.some((t) => t.step === "guard" && String(t.output).startsWith("blocked"))) { kind = "blocked"; label = "요청 거부"; }
+  const path = trace.filter((t) => t.step === "supervisor" && t.output && t.output.next && t.output.next !== "FINISH")
+    .map((t) => WORKER_LABEL[t.output.next] || t.output.next);
+  let html = `<div class="meta"><span class="badge ${esc(kind)}">${esc(label)}</span>` +
+    (path.length ? `<span class="path">조사 경로 <b>${path.map(esc).join(" → ")}</b></span>` : "") +
+    `<span class="sep"></span>${info.elapsed != null ? `<span>${info.elapsed < 1 ? "1초 미만" : info.elapsed + "초"}</span>` : ""}</div>`;
+  // 승인 대기 응답의 answer는 API 사용자용 안내(POST /approve …)라, 화면에서는 아래 승인 카드가 대신 안내한다.
+  if (r.status !== "awaiting_approval") html += `<div class="answer">${md(r.answer || "")}</div>`;
 
   if (r.status === "awaiting_approval") {
-    const acts = pendingActions(r.trace);
-    const items = acts.length
-      ? acts.map((a) => `<li><code>${esc(a.tool)}</code> — 대상 서비스 <strong>${esc((a.args || {}).service ?? "?")}</strong></li>`).join("")
-      : "<li>승인이 필요한 조치</li>";
+    const acts = pendingActions(trace);
+    const items = acts.length ? acts.map((a) => {
+      const svc = (a.args || {}).service ?? "?", s = services[svc];
+      return `<li><code>${esc(a.tool)}</code> — 대상 서비스 <strong>${esc(svc)}</strong>` +
+        `<div class="target">현재 상태: ${s ? svcLine(s) : "서비스 상태를 찾지 못했습니다"}</div></li>`;
+    }).join("") : "<li>승인이 필요한 조치</li>";
     html += `<div class="approval"><div class="title">사람 승인이 필요한 조치</div><ul>${items}</ul>
-      승인 전에는 아무것도 실행하지 않았습니다.
+      <div class="warnline">승인 전에는 아무것도 실행하지 않았습니다. 재시작은 위험 조치라 승인 버튼을 한 번 더 눌러야 실행됩니다.</div>
       <div class="actions"><button class="primary" data-decision="approve">승인하고 실행</button><button class="danger" data-decision="reject">거절</button></div></div>`;
   }
 
   const ctx = r.contexts || [];
-  html += `<details><summary>근거 ${ctx.length}건</summary>` +
-    (ctx.length ? ctx.map((c) => `<div class="ctx"><div class="id">${esc(c.doc_id)}</div><pre>${esc(c.text)}</pre></div>`).join("")
+  if (ctx.length) {
+    html += `<div class="chips">` + ctx.map((c, i) => {
+      const [cls, k, name] = chipOf(c.doc_id);
+      return `<button type="button" class="chip ${cls}" data-ctx="${i}" title="${esc(c.doc_id)}"><span class="k">${k}</span>${esc(name)}</button>`;
+    }).join("") + `</div>`;
+  }
+  html += `<details class="ctxs"><summary>근거 원문 ${ctx.length}건</summary>` +
+    (ctx.length ? ctx.map((c, i) => `<div class="ctx" data-i="${i}"><div class="id">${esc(c.doc_id)}</div><pre>${esc(c.text)}</pre></div>`).join("")
                 : `<div class="empty">인용한 근거가 없습니다.</div>`) + `</details>`;
-
-  const trace = r.trace || [];
   html += `<details><summary>처리 과정 ${trace.length}단계</summary>` +
     trace.map((t, i) => `<div class="step"><span class="n">${i + 1}</span><details><summary>${esc(t.step)}</summary>
       <pre>${esc(JSON.stringify({ input: t.input, output: t.output }, null, 2))}</pre></details></div>`).join("") + `</details>`;
 
   const el = addEl("bot", html);
-  el.querySelectorAll(".approval button").forEach((b) =>
-    b.addEventListener("click", () => decide(b.dataset.decision, el)));
+  decorate(el);
+  el.querySelectorAll(".chip").forEach((b) => b.addEventListener("click", () => {
+    const d = el.querySelector("details.ctxs"); d.open = true;
+    const target = d.querySelector(`.ctx[data-i="${b.dataset.ctx}"]`);
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    target.classList.remove("flash"); void target.offsetWidth; target.classList.add("flash");
+  }));
+  el.querySelectorAll(".approval button").forEach((b) => b.addEventListener("click", () => {
+    if (b.dataset.decision === "approve" && !b.classList.contains("armed")) {
+      // 두 단계 확인: 처음 누르면 무엇이 실행되는지 보여 주고, 5초 안에 한 번 더 눌러야 실행한다.
+      const what = pendingActions(trace).map((a) => `${(a.args || {}).service} ${TOOL_LABEL[a.tool] || a.tool}`).join(", ");
+      b.classList.add("armed"); b.textContent = `한 번 더 눌러 실행: ${what}`;
+      setTimeout(() => { if (!b.disabled) { b.classList.remove("armed"); b.textContent = "승인하고 실행"; } }, 5000);
+      return;
+    }
+    decide(b.dataset.decision, el);
+  }));
   waitingApproval = r.status === "awaiting_approval";
   setBusy(false);
 }
 
-async function call(path, body) {
-  const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.detail || `요청 실패 (HTTP ${res.status})`);
-  return data;
-}
-
-function startLoading(label) {
-  const el = addEl("bot", `<div class="loading">${esc(label)} <span>0</span>초</div>`);
-  const t0 = Date.now();
-  const timer = setInterval(() => { el.querySelector("span").textContent = Math.round((Date.now() - t0) / 1000); }, 1000);
-  return () => { clearInterval(timer); el.remove(); };
+// 코드 블록에 복사 버튼을 단다(런북 명령을 바로 옮겨 쓰도록).
+function decorate(el) {
+  el.querySelectorAll(".answer pre").forEach((pre) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "copy"; b.textContent = "복사";
+    b.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(pre.querySelector("code")?.textContent ?? pre.textContent); b.textContent = "복사됨"; }
+      catch { b.textContent = "복사 실패"; }
+      setTimeout(() => (b.textContent = "복사"), 1500);
+    });
+    pre.appendChild(b);
+  });
 }
 
 async function ask(question) {
@@ -282,48 +448,94 @@ async function ask(question) {
   addEl("user", esc(question));
   $("question").value = "";
   setBusy(true);
-  const stop = startLoading("에이전트가 런북·이력·상태를 확인하는 중…");
+  const p = progressCard("조사 중");
   try {
-    const r = await call("/query", threadId ? { question, thread_id: threadId } : { question });
-    stop();
+    const r = await streamCall("/query/stream", threadId ? { question, thread_id: threadId } : { question }, (s) => p.add(s));
+    const elapsed = p.stop();
     setThread(r.thread_id);
-    renderResponse(r);
+    renderResponse(r, { elapsed });
   } catch (e) {
-    stop();
+    p.stop();
     addEl("bot error", "오류: " + esc(e.message));
     setBusy(false);
   }
+  loadModels();
 }
 
 async function decide(decision, card) {
   card.querySelectorAll(".approval button").forEach((b) => (b.disabled = true));
   setBusy(true);
-  const stop = startLoading(decision === "approve" ? "승인한 조치를 실행하는 중…" : "거절을 반영하는 중…");
+  const p = progressCard(decision === "approve" ? "승인한 조치를 실행하는 중" : "거절을 반영하는 중");
   try {
-    const r = await call("/approve", { thread_id: threadId, decision });
-    stop();
+    const r = await streamCall("/approve/stream", { thread_id: threadId, decision }, (s) => p.add(s));
+    const elapsed = p.stop();
     card.querySelector(".approval .title").textContent = decision === "approve" ? "승인함" : "거절함";
-    renderResponse(r);
+    card.querySelector(".approval .warnline")?.remove();
+    card.querySelector(".approval .actions").innerHTML =
+      `<span class="st ${decision === "approve" ? "healthy" : "degraded"}">${decision === "approve" ? "승인해 실행을 요청함" : "거절함 — 실행하지 않음"}</span>`;
+    renderResponse(r, { elapsed });
     loadActions(); loadServices();
   } catch (e) {
-    stop();
+    p.stop();
     addEl("bot error", "오류: " + esc(e.message));
-    card.querySelectorAll(".approval button").forEach((b) => (b.disabled = false));
+    card.querySelectorAll(".approval button").forEach((b) => { b.disabled = false; b.classList.remove("armed"); });
+    card.querySelector('.approval button[data-decision="approve"]').textContent = "승인하고 실행";
     setBusy(false);
   }
+  loadModels();
 }
+
+const SEVERITY = { unhealthy: 0, degraded: 1, healthy: 2 };
+function hoursSince(iso) { const t = Date.parse(iso); return Number.isNaN(t) ? null : (Date.now() - t) / 3600000; }
 
 async function loadServices() {
   try {
-    const data = await (await fetch("/services")).json();
-    const names = Object.keys(data);
+    services = await (await fetch("/services")).json();
+    const names = Object.keys(services).sort((a, b) => (SEVERITY[services[a].status] ?? 3) - (SEVERITY[services[b].status] ?? 3) || a.localeCompare(b));
+    const count = (st) => names.filter((n) => services[n].status === st).length;
+    $("svcSummary").innerHTML = `<span class="st unhealthy">비정상 <b>${count("unhealthy")}</b></span>` +
+      `<span class="st degraded">저하 <b>${count("degraded")}</b></span><span class="st healthy">정상 <b>${count("healthy")}</b></span>`;
     $("services").innerHTML = names.length ? names.map((n) => {
-      const s = data[n];
-      return `<div class="svc"><div class="row"><span class="name">${esc(n)}</span><span class="st ${esc(s.status)}">${esc(s.status)}</span></div>
+      const s = services[n], h = hoursSince(s.last_deploy);
+      const recent = h != null && h >= 0 && h < 24 ? `<span class="tag" title="${esc(s.last_deploy)}">${Math.max(1, Math.round(h))}시간 전 배포</span>` : "";
+      return `<div class="svc ${esc(s.status)}" data-svc="${esc(n)}" title="눌러서 이 서비스 조사 질문 쓰기"><div class="row"><span class="name">${esc(n)}${recent}</span><span class="st ${esc(s.status)}">${esc(s.status)}</span></div>
         <div class="detail">파드 ${esc(s.pods_ready)} · 재시작 ${esc(s.restarts_last_hour)}회/시간 · 에러율 ${esc(s.error_rate_pct)}% · p95 ${esc(s.p95_latency_ms)}ms</div>
         ${s.note ? `<div class="detail">${esc(s.note)}</div>` : ""}</div>`;
     }).join("") : `<div class="empty">서비스가 없습니다.</div>`;
+    $("services").querySelectorAll(".svc").forEach((d) => d.addEventListener("click", () => {
+      const s = services[d.dataset.svc];
+      draft(`${d.dataset.svc}${s && s.note ? ` (${s.note})` : ""} 현재 상태와 과거 비슷한 장애를 확인하고 대응 절차를 알려줘`);
+    }));
   } catch { $("services").innerHTML = `<div class="empty">상태를 불러오지 못했습니다.</div>`; }
+}
+
+async function loadIncidents() {
+  try {
+    const { incidents } = await (await fetch("/incidents?limit=6")).json();
+    $("incidents").innerHTML = incidents.length ? incidents.map((x, i) =>
+      `<div class="inc"><details><summary><span class="sev ${esc(x.severity)}">${esc(x.severity)}</span><strong>${esc(x.id)}</strong> ${esc(x.service)} · ${esc(x.symptom)}</summary>
+        <div class="body">${esc(x.occurred_at)} · 원인: ${esc(x.root_cause)}<br>조치: ${esc(x.resolution)}
+        <br><button type="button" data-i="${i}">비슷한지 물어보기</button></div></details></div>`).join("")
+      : `<div class="empty">장애 이력이 없습니다.</div>`;
+    $("incidents").querySelectorAll("button[data-i]").forEach((b) => b.addEventListener("click", () => {
+      const x = incidents[Number(b.dataset.i)];
+      draft(`${x.service}에서 "${x.symptom}" 증상이 다시 났어. ${x.id}와 같은 원인인지 확인하고 대응 절차를 알려줘`);
+    }));
+  } catch { $("incidents").innerHTML = `<div class="empty">이력을 불러오지 못했습니다.</div>`; }
+}
+
+async function loadModels() {
+  try {
+    const m = await (await fetch("/models")).json();
+    const main = m.main || {}, [model, region] = String(main.current || "").split("@");
+    const short = model.replace(/^(us|global)\.(anthropic|amazon)\./, "").replace(/-\d{8}-v\d+:\d+$/, "").replace(/-v\d+:\d+$/, "");
+    const switched = (main.events || []).some((e) => String(e.event).startsWith("daily_quota") || e.event === "probe:daily_quota");
+    const label = $("modelLabel");
+    label.textContent = `${short} · ${region || ""}${switched ? " · 한도로 대체됨" : ""}`;
+    label.classList.toggle("switched", switched);
+    label.title = `답변: ${main.current}\n경로 선택: ${(m.router || {}).current}` +
+      (switched ? `\n일일 한도에 걸려 설정 모델(${main.configured})에서 대체했습니다.` : "");
+  } catch { $("modelLabel").textContent = "모델 상태 알 수 없음"; }
 }
 
 async function loadActions() {
@@ -333,6 +545,12 @@ async function loadActions() {
       `<div class="log"><code>${esc(a.action)}</code> → <strong>${esc(a.target)}</strong><div class="when">${esc(a.executed_at || "")}</div></div>`).join("")
       : `<div class="empty">아직 실행한 조치가 없습니다.</div>`;
   } catch { $("actions").innerHTML = `<div class="empty">기록을 불러오지 못했습니다.</div>`; }
+}
+
+function draft(text) {
+  if (busy || waitingApproval) return;
+  $("question").value = text;
+  $("question").focus();
 }
 
 EXAMPLES.forEach((q) => {
@@ -354,7 +572,8 @@ $("newChat").addEventListener("click", () => {
 });
 $("refreshSvc").addEventListener("click", loadServices);
 $("refreshLog").addEventListener("click", loadActions);
-loadServices(); loadActions();
+loadServices(); loadActions(); loadIncidents(); loadModels();
+setInterval(() => { if (!busy) loadServices(); }, 30000);
 </script>
 </body>
 </html>
