@@ -26,6 +26,8 @@ READ_TOOLS = {"retrieve_runbook", "search_incidents", "get_service_status"}
 def fake_status_api(service: str, status_file: Path = STATUS_FILE) -> dict:
     data = json.loads(Path(status_file).read_text(encoding="utf-8"))
     key = (service or "").strip().lower()
+    if key == "all":
+        return {"found": True, "service": "all", "services": {k: v for k, v in data.items()}}
     if key in data:
         return {"found": True, "service": key, **data[key]}
     return {"found": False, "service": key, "message": f"서비스 '{service}'를 찾을 수 없다"}
@@ -101,7 +103,7 @@ def make_tools(retriever, incidents_db: Path = INCIDENTS_DB, status_file: Path =
 
     @tool
     def get_service_status(service: str) -> dict:
-        """서비스의 현재 상태(파드, 에러율, 지연)를 조회한다. service는 서비스 이름(예: payment-api)."""
+        """서비스의 현재 상태(파드, 에러율, 지연)를 조회한다. service는 서비스 이름(예: payment-api). 서비스를 특정할 수 없으면 "all"로 전체 요약을 본다."""
         return fake_status_api(service, status_file)
 
     @tool
