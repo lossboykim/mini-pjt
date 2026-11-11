@@ -1,5 +1,7 @@
 # 평가 전용 가상환경(Python 3.12) 의존성: python -m venv .venv-eval 후 설치
 # 프로젝트 파이썬(3.14)에서는 ragas의 의존성(scikit-network)이 설치되지 않는다.
 ragas==0.4.3
+# langchain-community 0.4.2부터 ragas 0.4.3이 가져오는 chat_models.vertexai가 빠져 import가 실패한다
+langchain-community==0.4.1
 langchain-aws
 python-dotenv
