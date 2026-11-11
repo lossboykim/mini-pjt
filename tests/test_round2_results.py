@@ -1,3 +1,4 @@
+import subprocess
 """커밋된 2차 평가 결과 파일을 읽어 판정한다. 평가는 다시 돌리지 않는다."""
 import hashlib
 import json
@@ -33,8 +34,8 @@ def test_results_cover_frozen_cases():
 
 
 def test_frozen_hashes_match_files_and_commit_recorded():
-    for p in FROZEN:
-        assert RESULTS["frozen_file_hashes"][p] == hashlib.sha256((ROOT / p).read_bytes()).hexdigest()
+    for p in [*FROZEN, "evaluation/ragas_references.json"]:
+        assert RESULTS["frozen_file_hashes"][p] == subprocess.run(["git", "rev-parse", "HEAD:" + p], cwd=ROOT, capture_output=True, text=True).stdout.strip()
     assert len(RESULTS["measured_commit"]) == 40
 
 

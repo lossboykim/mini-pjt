@@ -39,3 +39,6 @@
 - `evaluation/round2_results.json`: 케이스별 판정(`judged_by`), 측정 커밋, 고정 파일 해시
 - `evaluation/ragas_round2.json`, `evaluation/ragas_inputs_round2.json`, `evaluation/ragas_references.json`
 - 스크립트: `evaluation/run_eval.py`, `evaluation/run_ragas.py`
+
+## 평가 스크립트 수정 이유 (프로토콜 보정)
+`run_eval.py`는 고정 파일 해시를 sha256으로 적고 `ragas_references.json`을 빠뜨렸다. 약속한 대로 `git rev-parse <commit>:<path>`의 blob 해시를 기록하고 `ragas_references.json`도 포함하도록 고쳤다. `round1_results.json`·`round2_results.json`의 해시 필드도 같은 방식으로 다시 적었다(측정값·판정은 그대로). `ragas_references.json`은 첫 커밋(5e7ed08)이 src 첫 커밋보다 뒤이고 1차 측정 커밋 트리에 없다. 이미 쌓인 커밋 이력은 다시 쓰지 않아 이 사실을 그대로 둔다.

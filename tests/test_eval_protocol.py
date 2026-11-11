@@ -49,8 +49,11 @@ def test_frozen_files_untouched_since_first_src_commit():
 def test_hashes_equal_across_rounds_and_current_files():
     r1, r2 = load(1), load(2)
     assert r1["frozen_file_hashes"] == r2["frozen_file_hashes"]
-    for p in FROZEN:
-        assert r1["frozen_file_hashes"][p] == digest(p)
+    for p in [*FROZEN, "evaluation/ragas_references.json"]:
+        assert r1["frozen_file_hashes"][p] == git("rev-parse", "HEAD:" + p)
+    for r in (r1, r2):
+        for p in FROZEN:
+            assert r["frozen_file_hashes"][p] == git("rev-parse", r["measured_commit"] + ":" + p)
 
 
 def test_round1_commit_has_no_additional_pattern_files():

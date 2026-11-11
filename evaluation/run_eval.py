@@ -21,7 +21,8 @@ sys.path.insert(0, str(ROOT / "evaluation"))
 
 import rubric  # noqa: E402
 
-FROZEN = ["evaluation/test_queries.csv", "evaluation/judge_prompt.md", "evaluation/rubric.py"]
+FROZEN = ["evaluation/test_queries.csv", "evaluation/judge_prompt.md", "evaluation/rubric.py",
+          "evaluation/ragas_references.json"]
 ENV_PATHS = [ROOT / ".env", Path(r"C:\Users\Admin\Desktop\mini-pjt\.env")]
 
 
@@ -105,7 +106,7 @@ def main():
         "round": a.round,
         "measured_commit": git("rev-parse", "HEAD"),
         "worktree_dirty_paths": git("status", "--porcelain", "--", "src", "data", "scripts").splitlines(),
-        "frozen_file_hashes": {p: sha256(p) for p in FROZEN},
+        "frozen_file_hashes": {p: git("rev-parse", "HEAD:" + p) for p in FROZEN},  # git blob 해시
         "summary": summary,
         "cases": [{"id": cid, "judged_by": v["judged_by"], "passed": v["passed"], "category": v["category"],
                    "reasons": v["reasons"], "tools_called": v["tools_called"], "status": v["status"],

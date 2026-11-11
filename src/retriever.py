@@ -23,6 +23,8 @@ DEFAULT_INDEX_DIR = ROOT / "index"
 SECRET_RE = re.compile(r"FAKE-SECRET-[A-Za-z0-9_-]*")
 REDACTED = "[REDACTED]"
 CHUNK_CHARS = 600
+# 근거 없음 문턱: 리랭크 점수(0~10)가 이 값 미만인 후보는 버리고, 전부 버려지면 contexts를 비운다.
+NO_EVIDENCE_MIN_SCORE = 6
 
 
 def mask_secrets(text: str) -> str:
@@ -75,7 +77,7 @@ RERANK_PROMPT = (
 
 class RunbookRetriever:
     def __init__(self, embeddings, llm=None, docs_dir=None, index_dir=None,
-                 top_k: int = 4, candidates: int = 8, min_score: int = 6, rrf_k: int = 60):
+                 top_k: int = 4, candidates: int = 8, min_score: int = NO_EVIDENCE_MIN_SCORE, rrf_k: int = 60):
         self.embeddings = embeddings
         self.llm = llm
         self.docs_dir = Path(docs_dir) if docs_dir else DEFAULT_DOCS_DIR
@@ -154,15 +156,25 @@ class RunbookRetriever:
     def hybrid_search(self, queries: list[str]) -> list[Doc]:
         """질의별 BM25 순위와 벡터 순위를 RRF로 합친다."""
         fused = np.zeros(len(self.docs))
+        bm_sum = np.zeros(len(self.docs))
+        vec_sum = np.zeros(len(self.docs))
         for q in queries:
             bm = np.array(self._bm25.get_scores(tokenize(q)))
             qv = np.array(self.embeddings.embed_query(q), dtype=float)
             denom = np.linalg.norm(self._vectors, axis=1) * (np.linalg.norm(qv) or 1.0)
             cos = (self._vectors @ qv) / np.where(denom == 0, 1.0, denom)
-            for scores in (bm, cos):
+            for scores, acc in ((bm, bm_sum), (cos, vec_sum)):
                 order = np.argsort(-scores)
                 for rank, idx in enumerate(order):
-                    fused[idx] += 1.0 / (self.rrf_k + rank + 1)
+                    w = 1.0 / (self.rrf_k + rank + 1)
+                    fused[idx] += w
+                    acc[idx] += w
+
+        def top(arr):
+            return [{"doc_id": self.docs[i].doc_id, "score": round(float(arr[i]), 5)}
+                    for i in np.argsort(-arr)[: self.candidates]]
+
+        self.last_search = {"bm25": top(bm_sum), "vector": top(vec_sum), "combined": top(fused)}
         order = np.argsort(-fused)[: self.candidates]
         return [Doc(self.docs[i].doc_id, self.docs[i].text, float(fused[i])) for i in order]
 
@@ -193,7 +205,9 @@ class RunbookRetriever:
         steps = [
             {"step": "query_expansion", "input": query, "output": {"queries": queries}},
             {"step": "hybrid_search", "input": {"queries": queries, "methods": ["bm25", "vector"], "fusion": "rrf"},
-             "output": {"candidates": [d.doc_id for d in cands]}},
+             "output": {"bm25": [x["doc_id"] for x in self.last_search["bm25"]],
+                        "vector": [x["doc_id"] for x in self.last_search["vector"]],
+                        "fused": [d.doc_id for d in cands]}},
             {"step": "rerank", "input": {"candidates": [d.doc_id for d in cands]},
              "output": {"kept": [{"doc_id": d.doc_id, "score": d.score} for d in docs]}},
         ]

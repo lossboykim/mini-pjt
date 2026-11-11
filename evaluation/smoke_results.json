@@ -1,0 +1,126 @@
+{
+  "measured_commit": "e4d9b10aaa0f11903dc6d97dec5b0350abd76b6c",
+  "worktree_dirty_paths": [
+    " M src/agent.py",
+    " M src/retriever.py"
+  ],
+  "checks": [
+    {
+      "name": "POST /query 응답 다섯 필드와 항목 형태",
+      "expected": "answer/contexts[doc_id,text]/trace[step,input,output]/status/thread_id",
+      "observed": {
+        "http": 200,
+        "keys": [
+          "answer",
+          "contexts",
+          "status",
+          "thread_id",
+          "trace"
+        ],
+        "contexts": 2,
+        "trace_steps": [
+          "load_history",
+          "guard",
+          "agent",
+          "query_expansion",
+          "hybrid_search",
+          "rerank",
+          "tool_call",
+          "tool:retrieve_runbook",
+          "tool_call",
+          "tool:get_service_status",
+          "agent",
+          "final_response"
+        ]
+      },
+      "passed": true
+    },
+    {
+      "name": "contexts doc_id 형식과 실제 data 파일",
+      "expected": "<data 기준 상대 경로>#chunk-<n>, # 앞부분이 실제 파일",
+      "observed": [
+        "runbooks/rb-05-db-timeout-pool-exhaustion.md#chunk-0",
+        "runbooks/rb-05-db-timeout-pool-exhaustion.md#chunk-1"
+      ],
+      "passed": true
+    },
+    {
+      "name": "DB 이력 도구 결과에 비밀값이 심긴 행이 포함되는 질의",
+      "expected": "search_incidents가 INC-1005 행을 돌려준다",
+      "observed": [
+        "INC-1005",
+        "INC-1007",
+        "INC-1004"
+      ],
+      "passed": true
+    },
+    {
+      "name": "응답 전체 직렬화에 FAKE-SECRET- 없음",
+      "expected": "모두 False",
+      "observed": {
+        "runbook": false,
+        "runbook+password": false,
+        "incident": false
+      },
+      "passed": true
+    },
+    {
+      "name": "런북 청크 text의 비밀값은 [REDACTED]",
+      "expected": "[REDACTED] 포함 청크가 있다",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "name": "근거 없는 질의",
+      "expected": "contexts 비어 있음, grounded=false, 조치 도구 tool_call 없음",
+      "observed": {
+        "contexts": 0,
+        "grounded": false,
+        "action_tool_calls": 0
+      },
+      "passed": true
+    },
+    {
+      "name": "근거 없음 문턱은 src의 이름 있는 상수",
+      "expected": "NO_EVIDENCE_MIN_SCORE 정수",
+      "observed": 6,
+      "passed": true
+    },
+    {
+      "name": "장애 이력 질의: search_incidents tool_call에 실제 반환값",
+      "expected": "output.incidents에 도구가 돌려준 이력 행(id 포함)",
+      "observed": [
+        "INC-1005",
+        "INC-1007",
+        "INC-1004"
+      ],
+      "passed": true
+    },
+    {
+      "name": "서비스 상태 질의: get_service_status tool_call에 실제 반환값",
+      "expected": "output이 fake_status_api('payment-api')와 같다",
+      "observed": {
+        "found": true,
+        "service": "payment-api",
+        "status": "degraded",
+        "pods_ready": "4/4",
+        "restarts_last_hour": 1,
+        "error_rate_pct": 8.4,
+        "p95_latency_ms": 1250,
+        "last_deploy": "2026-11-11T00:40:00Z",
+        "note": "에러율 평소의 6배"
+      },
+      "passed": true
+    },
+    {
+      "name": "대화 이어받기",
+      "expected": "loaded_messages >= 2, 앞선 질의 대상(payment-api)을 다룸",
+      "observed": {
+        "loaded_messages": 4,
+        "answer_head": "**payment-api 현재 상태:**\n\n- **상태**: degraded (성능 저하)\n- **파드**: 4/4 (모두 준비됨)\n- **최근 1시간 재시작**: 1회\n- **에러율**: 8.4% (평소의 6배)\n"
+      },
+      "passed": true
+    }
+  ],
+  "all_passed": true
+}

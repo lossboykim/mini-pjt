@@ -230,9 +230,7 @@ class RunbookAgent:
             elif name == "search_incidents":
                 if result["incidents"]:
                     out["has_incidents"] = True
-                summary = {"incident_ids": [i["id"] for i in result["incidents"]],
-                           "incidents": [{k: i[k] for k in ("id", "service", "symptom", "root_cause", "resolution")}
-                                         for i in result["incidents"]]}
+                summary = result  # 도구의 실제 반환값(비밀값은 도구 안에서 이미 가려짐)
             else:
                 out["has_status"] = True
                 summary = result

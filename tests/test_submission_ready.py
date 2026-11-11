@@ -12,7 +12,7 @@ README = (ROOT / "README.md").read_text(encoding="utf-8")
 IMPORT_TO_PKG = {
     "langchain_core": "langchain-core", "langchain_aws": "langchain-aws", "langgraph": "langgraph",
     "pydantic": "pydantic", "fastapi": "fastapi", "rank_bm25": "rank-bm25", "numpy": "numpy",
-    "dotenv": "python-dotenv", "boto3": "boto3", "uvicorn": "uvicorn", "langsmith": "langsmith",
+    "dotenv": "python-dotenv", "boto3": "boto3", "uvicorn": "uvicorn", "langsmith": "langsmith", "httpx": "httpx",
 }
 
 

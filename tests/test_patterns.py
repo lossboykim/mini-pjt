@@ -25,7 +25,7 @@ def test_retrieval_stages_recorded_in_order(client):
     assert by["query_expansion"]["output"]["queries"]
     hs = by["hybrid_search"]
     assert set(hs["input"]["methods"]) == {"bm25", "vector"}
-    assert hs["output"]["candidates"]
+    assert hs["output"]["fused"]
     assert by["rerank"]["output"]["kept"]
 
 
