@@ -1,4 +1,5 @@
 # 에이전트·서버 (src/)
+langchain
 langchain-core
 langchain-aws
 langgraph

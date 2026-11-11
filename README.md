@@ -15,7 +15,7 @@
 - 평가: 고정 평가 세트 16건 + LLM-as-Judge + RAGAS 4지표
 
 추가 패턴(구현 순서: 미들웨어 → MCP 서버 연동 → Supervisor)
-- 미들웨어(`src/middleware.py`): 미구현 — 시간 부족으로 제외했다.
+- 미들웨어(`src/middleware.py`, Day 5): LangChain `AgentMiddleware` 훅으로 구현했다. `SummarizationMiddleware`로 긴 대화 이력을 요약하고, `SecretMaskingMiddleware`가 체크포인터에 저장되는 이력의 비밀값을 가리며(LangSmith 트레이스는 익명화 클라이언트로 추적), `RetryMiddleware`가 스로틀링·타임아웃 같은 일시 오류에 지수 백오프로 다시 시도한다. `MiddlewareChain`이 직접 만든 그래프에서 훅을 실행한다.
 - MCP 서버 연동(`src/mcp_server.py`): 미구현 — 시간 부족으로 제외했다.
 - Multi-Agent Supervisor(`src/supervisor.py`): 미구현 — 시간 부족으로 제외했다(가장 먼저 빠지는 순서).
 - Plan-Execute, 장기 메모리: 범위 제외.
@@ -81,13 +81,13 @@ faithfulness·answer_relevancy가 낮은 것은 답변에 이력·상태 수치�
 ## 8. 핵심 코드 위치
 | 항목 | 위치 | 심볼 |
 |---|---|---|
-| 구조화 출력 | `src/agent.py:72` | `FinalAnswer` |
-| 인젝션 가드 정규식 | `src/agent.py:63` | `INJECTION_RE` |
-| 에이전트 클래스 | `src/agent.py:132` | `RunbookAgent` |
-| 승인 대기(HITL) | `src/agent.py:242` | `_approval` |
-| 최종 응답 | `src/agent.py:264` | `_final` |
-| 질의 진입 | `src/agent.py:305` | `query` |
-| 승인 재개 | `src/agent.py:313` | `approve` |
+| 구조화 출력 | `src/agent.py:74` | `FinalAnswer` |
+| 인젝션 가드 정규식 | `src/agent.py:65` | `INJECTION_RE` |
+| 에이전트 클래스 | `src/agent.py:134` | `RunbookAgent` |
+| 승인 대기(HITL) | `src/agent.py:260` | `_approval` |
+| 최종 응답 | `src/agent.py:282` | `_final` |
+| 질의 진입 | `src/agent.py:327` | `query` |
+| 승인 재개 | `src/agent.py:336` | `approve` |
 | 쿼리 확장 | `src/retriever.py:143` | `expand_query` |
 | 하이브리드 검색 | `src/retriever.py:156` | `hybrid_search` |
 | 리랭킹 | `src/retriever.py:181` | `rerank` |

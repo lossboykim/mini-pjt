@@ -10,7 +10,7 @@ README = (ROOT / "README.md").read_text(encoding="utf-8")
 
 # import 이름 -> requirements.txt 패키지 이름
 IMPORT_TO_PKG = {
-    "langchain_core": "langchain-core", "langchain_aws": "langchain-aws", "langgraph": "langgraph",
+    "langchain": "langchain", "langchain_core": "langchain-core", "langchain_aws": "langchain-aws", "langgraph": "langgraph",
     "pydantic": "pydantic", "fastapi": "fastapi", "rank_bm25": "rank-bm25", "numpy": "numpy",
     "dotenv": "python-dotenv", "boto3": "boto3", "uvicorn": "uvicorn", "langsmith": "langsmith", "httpx": "httpx",
 }

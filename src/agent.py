@@ -13,6 +13,7 @@ import re
 import sqlite3
 import threading
 import uuid
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Annotated, Any, TypedDict
 
@@ -23,6 +24,7 @@ from langgraph.graph.message import add_messages
 from langgraph.types import Command, interrupt
 from pydantic import BaseModel, Field
 
+from src.middleware import build_middleware, masked_tracing
 from src.retriever import REDACTED, ROOT, RunbookRetriever, mask_secrets
 from src.tools import (ACTION_TOOLS, INCIDENTS_DB, READ_TOOLS, STATUS_FILE, ActionLog,
                        execute_restart, make_tools)
@@ -131,8 +133,11 @@ def default_embeddings():
 
 class RunbookAgent:
     def __init__(self, llm=None, embeddings=None, state_dir=None, docs_dir=None,
-                 incidents_db=None, status_file=None, index_dir=None, log_dir=None):
+                 incidents_db=None, status_file=None, index_dir=None, log_dir=None,
+                 use_middleware=True):
         self.llm = llm or default_llm()
+        # 미들웨어(Day 5): 이력 요약, 저장 이력 마스킹, 모델 호출 재시도
+        self.middleware = build_middleware(self.llm) if use_middleware else None
         embeddings = embeddings or default_embeddings()
         self.state_dir = Path(state_dir) if state_dir else ROOT / "state"
         self.state_dir.mkdir(parents=True, exist_ok=True)
@@ -172,21 +177,34 @@ class RunbookAgent:
                 return str(m.content)
         return ""
 
+    def _invoke(self, runnable, request):
+        """모델 호출. 미들웨어가 있으면 wrap_model_call 체인(재시도)을 거친다."""
+        if self.middleware is None:
+            return runnable.invoke(request)
+        return self.middleware.call_model(request, runnable.invoke)
+
     def _guard(self, state: State) -> dict:
         q = self._last_question(state)
         history = _step("load_history", {"thread_messages": "checkpoint"}, {"loaded_messages": max(len(state["messages"]) - 1, 0)})
         reset = {"contexts": [], "steps": 0, "pending": [], "has_incidents": False,
                  "has_status": False, "acted": False, "blocked": False}
+        head = [history]
+        if self.middleware is not None:
+            # 턴이 시작될 때 before_model 훅을 돌린다: 저장 이력의 비밀값을 가리고, 이력이 길면 요약으로 줄인다.
+            _, updates, events = self.middleware.before_model(state["messages"])
+            if updates:
+                reset["messages"] = updates
+                head.append(_step("middleware", {"hook": "before_model"}, events))
         if INJECTION_RE.search(q):
             return {**reset, "blocked": True, "answer": INJECTION_ANSWER,
-                    "trace": [history, _step("guard", q, "blocked: prompt_injection"),
+                    "trace": [*head, _step("guard", q, "blocked: prompt_injection"),
                               _step("final_response", "guardrail",
                                     {"answer": INJECTION_ANSWER, "grounded": False, "cited_doc_ids": [], "refused": True})]}
-        return {**reset, "trace": [history, _step("guard", q, "ok")]}
+        return {**reset, "trace": [*head, _step("guard", q, "ok")]}
 
     def _agent(self, state: State) -> dict:
         steps = state.get("steps", 0) + 1
-        resp = self._llm_tools.invoke([SystemMessage(SYSTEM_PROMPT)] + state["messages"])
+        resp = self._invoke(self._llm_tools, [SystemMessage(SYSTEM_PROMPT)] + state["messages"])
         calls = [{"name": c["name"], "args": c["args"]} for c in (getattr(resp, "tool_calls", None) or [])]
         trace = list(state["trace"]) + [_step("agent", {"step": steps}, {"requested_tool_calls": calls} if calls else "final")]
         return {"messages": [resp], "trace": trace, "steps": steps}
@@ -263,7 +281,7 @@ class RunbookAgent:
 
     def _final(self, state: State) -> dict:
         msgs = [SystemMessage(SYSTEM_PROMPT)] + state["messages"] + [HumanMessage(FINAL_INSTRUCTION)]
-        res: FinalAnswer = self.llm.with_structured_output(FinalAnswer).invoke(msgs)
+        res: FinalAnswer = self._invoke(self.llm.with_structured_output(FinalAnswer), msgs)
         contexts = state.get("contexts", [])
         has_evidence = bool(contexts) or state.get("has_incidents") or state.get("has_status") or state.get("acted")
         grounded = bool((res.grounded or state.get("acted")) and has_evidence)
@@ -282,6 +300,10 @@ class RunbookAgent:
     # ---------- 외부 인터페이스 ----------
     def _cfg(self, thread_id: str) -> dict:
         return {"configurable": {"thread_id": thread_id}}
+
+    def _tracing(self):
+        """미들웨어가 있으면 LangSmith로 나가는 실행 기록의 비밀값을 가린 채 추적한다."""
+        return masked_tracing() if self.middleware is not None else nullcontext()
 
     def _pending_interrupts(self, snapshot) -> list:
         return [i.value for t in snapshot.tasks for i in t.interrupts]
@@ -307,7 +329,8 @@ class RunbookAgent:
         with self._lock:
             snap = self.graph.get_state(self._cfg(thread_id))
             if not self._pending_interrupts(snap):  # 승인 대기 중이면 새 질의를 처리하지 않고 대기 상태를 다시 알린다
-                self.graph.invoke({"messages": [HumanMessage(question)]}, self._cfg(thread_id))
+                with self._tracing():
+                    self.graph.invoke({"messages": [HumanMessage(question)]}, self._cfg(thread_id))
             return self._response(thread_id)
 
     def approve(self, thread_id: str, decision: str) -> dict:
@@ -318,5 +341,6 @@ class RunbookAgent:
                 raise LookupError("이미 처리된 thread_id다")
             if not self._pending_interrupts(self.graph.get_state(self._cfg(thread_id))):
                 raise LookupError("승인 대기 중인 조치가 없다")
-            self.graph.invoke(Command(resume=decision), self._cfg(thread_id))
+            with self._tracing():
+                self.graph.invoke(Command(resume=decision), self._cfg(thread_id))
             return self._response(thread_id)
