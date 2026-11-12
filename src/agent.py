@@ -454,7 +454,12 @@ class RunbookAgent:
         pending = state["pending"]
         thread_id = config["configurable"]["thread_id"]
         # 모든 interrupt를 먼저 받고, 그 뒤에 실행한다(재개 때 노드가 처음부터 다시 돌기 때문).
-        decisions = [interrupt({"action": c["name"], "args": c["args"]}) for c in pending]
+        # approval_id: 승인 요청 하나를 가리키는 값. 호출 id와 이 시점의 메시지 수로 만들어, 재개 때 노드가 다시 돌아도 같고
+        # 같은 대화의 다음 요청과는 다르다. 중복 실행은 이 값으로 막는다(thread_id로 막으면 한 대화에서 한 번만 승인된다).
+        n_msgs = len(state["messages"])
+        approval_ids = {c["id"]: f"{c['id']}@{n_msgs}" for c in pending}
+        decisions = [interrupt({"action": c["name"], "args": c["args"], "approval_id": approval_ids[c["id"]]})
+                     for c in pending]
         trace = list(state["trace"])
         msgs = []
         approvals = list(state.get("approvals", []))
@@ -462,7 +467,7 @@ class RunbookAgent:
         for call, decision in zip(pending, decisions):
             service = str(call["args"].get("service", ""))
             if decision == "approve":
-                result = execute_restart(service, self.action_log, self.status_file, thread_id)
+                result = execute_restart(service, self.action_log, self.status_file, thread_id, approval_ids[call["id"]])
                 executed_any = executed_any or result["executed"]
             else:  # 거부: 실행하지 않는다
                 result = {"executed": False, "action": call["name"], "service": service,
@@ -561,10 +566,13 @@ class RunbookAgent:
     def _check_approvable(self, thread_id: str, decision: str) -> None:
         if decision not in ("approve", "reject"):
             raise ValueError("decision은 approve 또는 reject여야 한다")
-        if self.action_log.has_thread(thread_id):
-            raise LookupError("이미 처리된 thread_id다")
-        if not self._pending_interrupts(self.graph.get_state(self._cfg(thread_id))):
+        pending = self._pending_interrupts(self.graph.get_state(self._cfg(thread_id)))
+        if not pending:
             raise LookupError("승인 대기 중인 조치가 없다")
+        # 대기 중인 요청을 이미 실행했다면(실행 직후 저장 전에 멈춘 경우 등) 다시 실행하지 않는다.
+        # 같은 대화의 이전 요청을 실행한 기록은 막지 않는다.
+        if any(self.action_log.has_approval(p.get("approval_id", "")) for p in pending):
+            raise LookupError("이미 처리된 승인 요청이다")
 
     # ---------- 단계별 스트리밍(웹 콘솔용) ----------
     def query_stream(self, question: str, thread_id: str | None = None):

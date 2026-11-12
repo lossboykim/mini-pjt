@@ -34,7 +34,7 @@ def test_approve_executes_exactly_once(client, agent):
     assert set(done) == FIVE and done["status"] == "completed"
     assert done["thread_id"] == r["thread_id"]
     log = agent.action_log.read()
-    assert len(log) == 1 and set(log[0]) == {"thread_id", "action", "target", "executed_at"}
+    assert len(log) == 1 and set(log[0]) == {"thread_id", "action", "target", "executed_at", "approval_id"}
     assert log[0]["thread_id"] == r["thread_id"]
     assert log[0]["action"] == "restart_service" and log[0]["target"] == "order-worker"
     call = [t for t in done["trace"] if t["step"] == "tool_call" and t["input"]["tool"] == "restart_service"]
@@ -59,13 +59,32 @@ def test_reject_does_not_execute(client, agent):
     assert client.post("/approve", json={"thread_id": r["thread_id"], "decision": "reject"}).status_code == 409
 
 
-def test_approve_blocked_when_log_line_exists(client, agent):
-    """로그에 이미 thread_id 줄이 있으면 대기 중이어도 실행하지 않고 409."""
+def test_approve_blocked_when_log_line_exists_for_this_request(client, agent):
+    """대기 중인 승인 요청을 이미 실행한 로그 줄이 있으면(실행 직후 저장 전에 멈춘 경우) 실행하지 않고 409."""
     r = ask(client)
-    agent.action_log.append({"thread_id": r["thread_id"], "action": "restart_service",
-                             "target": "order-worker", "executed_at": "x"})
+    pending = agent._pending_interrupts(agent.graph.get_state(agent._cfg(r["thread_id"])))
+    assert pending and pending[0]["approval_id"]
+    agent.action_log.append({"thread_id": r["thread_id"], "action": "restart_service", "target": "order-worker",
+                             "executed_at": "x", "approval_id": pending[0]["approval_id"]})
     assert client.post("/approve", json={"thread_id": r["thread_id"], "decision": "approve"}).status_code == 409
     assert len(agent.action_log.read()) == 1
+
+
+def test_second_request_in_same_conversation_can_be_approved(client, agent):
+    """웹 화면은 한 대화에서 같은 thread_id를 계속 쓴다. 앞선 조치를 실행했어도 다음 요청은 승인할 수 있어야 한다."""
+    r1 = ask(client)
+    tid = r1["thread_id"]
+    assert decide(client, tid, "approve")["status"] == "completed"
+    assert len(agent.action_log.read()) == 1
+    r2 = client.post("/query", json={"question": ASK, "thread_id": tid}).json()
+    assert r2["status"] == "awaiting_approval" and r2["thread_id"] == tid
+    assert len(agent.action_log.read()) == 1  # 승인 전에는 실행되지 않는다
+    assert decide(client, tid, "approve")["status"] == "completed"
+    log = agent.action_log.read()
+    assert len(log) == 2 and log[0]["approval_id"] != log[1]["approval_id"]
+    # 처리한 요청에 다시 승인하면 여전히 거절되고 재실행되지 않는다
+    assert client.post("/approve", json={"thread_id": tid, "decision": "approve"}).status_code == 409
+    assert len(agent.action_log.read()) == 2
 
 
 def test_409_survives_restart(tmp_path, llm):

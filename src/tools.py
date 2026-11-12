@@ -67,8 +67,9 @@ class ActionLog:
         with self._lock, open(self.path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
-    def has_thread(self, thread_id: str) -> bool:
-        return any(e.get("thread_id") == thread_id for e in self.read())
+    def has_approval(self, approval_id: str) -> bool:
+        """이 승인 요청(approval_id)으로 이미 조치를 실행했는가. thread_id 단위가 아니라 요청 단위로 본다."""
+        return bool(approval_id) and any(e.get("approval_id") == approval_id for e in self.read())
 
     def read(self) -> list[dict]:
         if not self.path.exists():
@@ -76,14 +77,18 @@ class ActionLog:
         return [json.loads(line) for line in self.path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def execute_restart(service: str, log: ActionLog, status_file: Path = STATUS_FILE, thread_id: str = "") -> dict:
-    """가짜 재시작. 승인 노드에서만 호출한다. 실제로 실행했을 때만 로그 한 줄({thread_id, action, target, executed_at})을 남긴다."""
+def execute_restart(service: str, log: ActionLog, status_file: Path = STATUS_FILE, thread_id: str = "",
+                    approval_id: str = "") -> dict:
+    """가짜 재시작. 승인 노드에서만 호출한다. 실제로 실행했을 때만 로그 한 줄을 남긴다.
+
+    로그 한 줄: {thread_id, action, target, executed_at, approval_id}. approval_id는 승인 요청 하나를 가리키는 값이라,
+    같은 요청의 중복 실행은 막고 같은 대화의 다음 요청은 허용한다."""
     info = fake_status_api(service, status_file)
     if not info["found"]:
         return {"executed": False, "action": "restart_service", "service": service,
                 "message": "존재하지 않는 서비스라 실행하지 않았다"}
     log.append({"thread_id": thread_id, "action": "restart_service", "target": info["service"],
-                "executed_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")})
+                "executed_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "approval_id": approval_id})
     return {"executed": True, "action": "restart_service", "service": info["service"],
             "message": f"{info['service']} 롤링 재시작을 (가짜로) 실행했다"}
 

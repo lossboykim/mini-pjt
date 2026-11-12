@@ -122,9 +122,9 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
 | 인용 근거 선별 | `src/agent.py:186` | `pick_contexts` |
 | 에이전트 클래스 | `src/agent.py:270` | `RunbookAgent` |
 | 승인 대기(HITL) | `src/agent.py:453` | `_approval` |
-| 최종 응답 | `src/agent.py:480` | `_final` |
-| 질의 진입 | `src/agent.py:545` | `query` |
-| 승인 재개 | `src/agent.py:554` | `approve` |
+| 최종 응답 | `src/agent.py:485` | `_final` |
+| 질의 진입 | `src/agent.py:550` | `query` |
+| 승인 재개 | `src/agent.py:559` | `approve` |
 | 일일 한도 대체 | `src/llm.py:194` | `FailoverChat` |
 | MCP 세션 재사용 | `src/mcp_server.py:70` | `_SessionWorker` |
 | 쿼리 확장 | `src/retriever.py:143` | `expand_query` |
@@ -132,7 +132,7 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
 | 리랭킹 | `src/retriever.py:181` | `rerank` |
 | 장애 이력 조회 | `src/tools.py:37` | `query_incidents` |
 | 가짜 조치 로그 | `src/tools.py:58` | `ActionLog` |
-| 도구 정의 | `src/tools.py:92` | `make_tools` |
+| 도구 정의 | `src/tools.py:97` | `make_tools` |
 | API 서버 | `src/server.py:33` | `create_app` |
 | 가드레일 판정 | `evaluation/rubric.py:154` | `judge_guardrail` |
 | 평가 실행 | `evaluation/run_eval.py:76` | `main` |
