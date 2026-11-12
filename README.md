@@ -54,7 +54,17 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
   - 조사 진행: `POST /query/stream`·`/approve/stream`으로 감독자 배정, 런북 검색, 이력·상태 조회, 승인 대기를 끝나는 즉시 보여 준다. 답에는 조사 경로와 걸린 시간이 붙는다.
   - 근거 칩: 답 아래에 런북·이력·상태·조치 근거를 종류별 칩으로 보여 주고, 누르면 원문으로 이동한다. 코드 블록에는 복사 버튼이 있다.
   - 승인 카드: 대상 서비스의 현재 상태를 함께 보여 주고, 승인은 버튼을 두 번 눌러야 실행된다.
-  - 사이드 패널: 서비스를 심각한 순으로 정렬하고 상태별 개수와 24시간 안의 배포를 표시한다(30초마다 갱신, 누르면 그 서비스 조사 질문을 써 준다). 최근 장애 이력(`GET /incidents`)을 펼쳐 원인·조치를 보고 비슷한지 물을 수 있다. 헤더에 지금 쓰는 모델(`GET /models`)과 일일 한도 대체 여부를 표시한다.
+  - 사이드 패널(상황판 탭): 서비스를 심각한 순으로 정렬하고 상태별 개수와 72시간 안의 배포를 표시한다(30초마다 갱신, 누르면 그 서비스 조사 질문을 써 준다). 최근 장애 이력(`GET /incidents`)을 펼쳐 원인·조치를 보고 비슷한지 물을 수 있다. 헤더에 지금 쓰는 모델(`GET /models`)과 일일 한도 대체 여부를 표시한다.
+  - 2차 화면 개선에서 참고한 서비스와 반영한 기능:
+    - 영향 요약 바(Dynatrace Problems의 영향 분석, Datadog Incident의 Impacts): 대화창 위에 영향 서비스 수, 가장 심각한 서비스, 72시간 안의 배포, 대응 시작 시각과 경과 시간을 보여 준다.
+    - 조사 결과 분류(Grafana Sift의 Interesting / Completed / Failed): 조회 단계마다 발견·이상 없음·실패를 붙이고, 답 아래에 분류별로 묶어 보여 준다.
+    - 최근 변경(Datadog Change Tracking): 답에 나온 서비스에 최근 배포가 있으면 칩으로 띄운다. 칩을 누르면 배포 영향 확인 질문을 써 준다. 상황판의 Changes 목록은 배포와 승인된 조치를 시간순으로 합쳐 보여 준다(기존 Action Log를 대체).
+    - 답변 평가(Rootly AI SRE의 정확도 평가, Datadog Bits AI SRE·AWS DevOps Agent의 근본 원인 피드백): 정확함·부정확함을 고르고, 부정확하면 실제 원인을 적는다. `POST /feedback`이 실행 로그 옆 `feedback.jsonl`에 비밀값을 가려 저장하고, `GET /feedback`이 개수와 목록을 돌려준다. 에이전트 답에 다시 반영하지는 않는다.
+    - 세션 타임라인·메모·별표(Datadog Incident timeline, CloudWatch investigations의 Feed와 note, FireHydrant 회고의 별표 항목): 질의·답변·승인·조치·확인·메모·평가를 시간순으로 쌓는다. 정렬을 바꾸거나 별표 기록만 볼 수 있다.
+    - 보고서 초안(CloudWatch incident report의 Overview·Impact·Root cause·Mitigation·Next steps 구성): 타임라인으로 개요·영향·대응 경과·원인과 절차·실행한 조치·근거·다음 단계·답변 평가를 Markdown으로 만든다. 복사하거나 `.md`로 내려받는다. 서버나 LLM을 다시 부르지 않는다.
+    - 경보 확인(Opsgenie Acknowledge): 비정상·저하 서비스에 확인 표시를 한다. 확인한 서비스는 미확인 서비스 아래로 내려가고, 상태가 바뀌면 확인이 풀린다. 이 브라우저(localStorage)에만 저장한다.
+    - `/` 키로 입력창으로 이동한다.
+  - 응답 스키마를 바꿔야 하는 신뢰도 등급과 가설 트리(Rootly, Datadog Bits AI SRE)는 고정 평가에 영향을 줄 수 있어 넣지 않았다.
 - 테스트(Bedrock 호출 없음, 가짜 모델): `python -m pytest tests -q`
 - 평가: `python evaluation/run_eval.py --round <N>`(같은 코드를 반복 측정하면 `--run <K>`), RAGAS는 `evaluation/requirements-eval.txt`로 만든 `.venv-eval`에서 `evaluation/run_ragas.py --round <N>`
 - MCP 서버는 에이전트가 필요할 때 `python -m src.mcp_server`를 stdio로 직접 띄운다. 따로 실행할 필요는 없다.
@@ -142,6 +152,6 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
 | 장애 이력 조회 | `src/tools.py:37` | `query_incidents` |
 | 가짜 조치 로그 | `src/tools.py:58` | `ActionLog` |
 | 도구 정의 | `src/tools.py:92` | `make_tools` |
-| API 서버 | `src/server.py:24` | `create_app` |
+| API 서버 | `src/server.py:33` | `create_app` |
 | 가드레일 판정 | `evaluation/rubric.py:154` | `judge_guardrail` |
 | 평가 실행 | `evaluation/run_eval.py:76` | `main` |

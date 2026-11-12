@@ -88,10 +88,10 @@
   .welcome p { color: var(--muted); margin: 0; }
   .examples { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 32px 12px; }
   .examples button { font-size: 13px; border-radius: 2px; color: var(--muted); background: var(--panel); }
-  form { display: flex; gap: 10px; padding: 14px 32px 18px; border-top: 1px solid var(--line); background: var(--panel); }
+  #form { display: flex; gap: 10px; padding: 14px 32px 18px; border-top: 1px solid var(--line); background: var(--panel); }
   textarea { flex: 1; resize: none; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 2px; padding: 11px 14px; height: 66px; }
   textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
-  form button.primary { min-width: 96px; }
+  #form button.primary { min-width: 96px; }
   .hint { padding: 0 32px 6px; color: var(--warn); font-size: 13px; font-weight: 600; }
 
   aside { border-left: 1px solid var(--line); background: var(--panel); overflow-y: auto; padding: 22px; }
@@ -152,6 +152,62 @@
   .model { font-size: 11.5px; color: var(--muted); border: 1px solid var(--line); padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
   .model.switched { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
 
+  /* ---- 영향 요약(Dynatrace·Datadog Impacts), 조사 결과 분류(Grafana Sift), 최근 변경(Datadog Change Tracking),
+          답변 평가(Rootly·Datadog·AWS), 타임라인·보고서(Datadog·CloudWatch·FireHydrant), 확인(Opsgenie) ---- */
+  .impact { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; padding: 10px 32px; border-bottom: 1px solid var(--line); background: var(--panel); font-size: 12.5px; color: var(--muted); }
+  .impact b { color: var(--text); font-weight: 700; }
+  .impact .lead { font-weight: 800; color: var(--text); letter-spacing: .04em; font-size: 11.5px; text-transform: uppercase; }
+  .impact .svcs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .impact .svcs button { font-size: 12px; padding: 2px 9px; font-family: ui-monospace, Consolas, monospace; border-radius: 999px; }
+  .impact .svcs button.unhealthy { border-color: color-mix(in srgb, var(--bad) 55%, transparent); color: var(--bad); }
+  .impact .svcs button.degraded { border-color: color-mix(in srgb, var(--warn) 55%, transparent); color: var(--warn); }
+  .impact .svcs button.acked { opacity: .6; }
+  .impact .clock { margin-left: auto; font-variant-numeric: tabular-nums; }
+  .oc { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 0 6px; border-radius: 2px; margin-left: 6px; }
+  .oc.found { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+  .oc.clear { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+  .oc.failed { color: var(--bad); background: color-mix(in srgb, var(--bad) 11%, transparent); }
+  .findings .grp { margin: 8px 0 0; font-size: 12.5px; }
+  .findings .grp .h { font-weight: 700; font-size: 12px; margin-bottom: 2px; }
+  .findings .grp ul { margin: 0; padding-left: 18px; color: var(--muted); }
+  .changed { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px; color: var(--muted); }
+  .changed button { font-size: 12px; padding: 2px 10px; border-radius: 999px; color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); }
+  .fb { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12.5px; color: var(--muted); }
+  .fb button { font-size: 12px; padding: 3px 10px; }
+  .fb textarea { flex-basis: 100%; height: 60px; font-size: 13px; }
+  .fb .done { color: var(--ok); font-weight: 600; }
+  .tabs { display: flex; gap: 0; margin: -22px -22px 22px; border-bottom: 1px solid var(--line); position: sticky; top: -22px; background: var(--panel); z-index: 1; }
+  .tabs button { flex: 1; border: 0; border-bottom: 2px solid transparent; padding: 12px 8px; font-size: 13px; font-weight: 700; color: var(--muted); background: none; border-radius: 0; }
+  .tabs button[aria-selected="true"] { color: var(--brand); border-bottom-color: var(--brand); }
+  .tabs .count { font-size: 11px; color: var(--muted); font-weight: 600; margin-left: 4px; }
+  .ack { font-size: 11px; padding: 1px 8px; margin-left: 8px; }
+  .svc .row .right { display: inline-flex; align-items: center; white-space: nowrap; flex: none; }
+  .svc .row { gap: 8px; }
+  .svc .nm { white-space: nowrap; }
+  .svc.acked { opacity: .72; }
+  .acked-tag { font-size: 10.5px; color: var(--muted); margin-left: 6px; font-weight: 600; }
+  .chg { display: flex; gap: 10px; align-items: baseline; font-size: 12.5px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .chg .k { font-size: 10.5px; font-weight: 800; width: 44px; flex: none; }
+  .chg .k.deploy { color: var(--brand); } .chg .k.action { color: var(--bad); }
+  .chg .what { flex: 1; } .chg .when { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+  .note-form { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 14px; }
+  .note-form textarea { height: 64px; font-size: 13px; }
+  .note-form .row, .tl-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .tl-tools { margin-bottom: 6px; font-size: 12px; color: var(--muted); }
+  .tl-tools .spacer { flex: 1; }
+  .tl-tools button, .note-form button { font-size: 12px; padding: 4px 10px; }
+  .tl { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; display: grid; grid-template-columns: 58px 1fr auto; gap: 8px; align-items: start; }
+  .tl .t { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .tl .kind { font-size: 10.5px; font-weight: 800; margin-right: 6px; }
+  .tl .kind.k-question { color: var(--brand); } .tl .kind.k-answer { color: var(--ok); } .tl .kind.k-approval, .tl .kind.k-action { color: var(--bad); }
+  .tl .kind.k-note { color: var(--text); } .tl .kind.k-ack, .tl .kind.k-feedback { color: var(--warn); }
+  .tl .txt { word-break: break-word; }
+  .tl .star { border: 0; background: none; padding: 0 2px; font-size: 15px; line-height: 1; color: var(--muted); }
+  .tl .star.on { color: var(--warn); }
+  .report-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .report-actions button { flex: 1; font-size: 12.5px; }
+  .toast { font-size: 12px; color: var(--ok); min-height: 18px; margin-top: 6px; }
+
   @media (max-width: 860px) {
     .model { display: none; }
     header { padding: 0 16px; }
@@ -159,7 +215,9 @@
     .layout { grid-template-columns: 1fr; height: auto; }
     main { height: calc(100vh - 64px); }
     aside { border-left: 0; border-top: 1px solid var(--line); padding: 20px 16px; }
-    #messages, form, .examples, .hint { padding-left: 16px; padding-right: 16px; }
+    #messages, #form, .examples, .hint, .impact { padding-left: 16px; padding-right: 16px; }
+    .impact .clock { margin-left: 0; }
+    .tabs { margin: -20px -16px 20px; top: 0; }
     .welcome h2 { font-size: 24px; }
   }
 </style>
@@ -174,6 +232,7 @@
 </header>
 <div class="layout">
   <main>
+    <div class="impact" id="impact" aria-live="polite"><span class="lead">Impact</span><span>상태를 불러오는 중…</span></div>
     <div id="messages">
       <div class="welcome" id="welcome">
         <div class="eyebrow">Incident Response</div>
@@ -189,19 +248,42 @@
     </form>
   </main>
   <aside>
-    <section>
-      <h3>Service Status <button type="button" id="refreshSvc">새로고침</button></h3>
-      <div class="summary" id="svcSummary"></div>
-      <div id="services"><div class="empty">불러오는 중…</div></div>
-    </section>
-    <section>
-      <h3>Recent Incidents</h3>
-      <div id="incidents"><div class="empty">불러오는 중…</div></div>
-    </section>
-    <section>
-      <h3>Action Log <button type="button" id="refreshLog">새로고침</button></h3>
-      <div id="actions"><div class="empty">불러오는 중…</div></div>
-    </section>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" id="tabBoardBtn" aria-selected="true" aria-controls="tabBoard">상황판</button>
+      <button type="button" role="tab" id="tabTimelineBtn" aria-selected="false" aria-controls="tabTimeline">타임라인<span class="count" id="tlCount"></span></button>
+    </div>
+    <div id="tabBoard" role="tabpanel">
+      <section>
+        <h3>Service Status <button type="button" id="refreshSvc">새로고침</button></h3>
+        <div class="summary" id="svcSummary"></div>
+        <div id="services"><div class="empty">불러오는 중…</div></div>
+      </section>
+      <section>
+        <h3>Changes <button type="button" id="refreshLog">새로고침</button></h3>
+        <div id="changes"><div class="empty">불러오는 중…</div></div>
+      </section>
+      <section>
+        <h3>Recent Incidents</h3>
+        <div id="incidents"><div class="empty">불러오는 중…</div></div>
+      </section>
+    </div>
+    <div id="tabTimeline" role="tabpanel" hidden>
+      <section>
+        <h3>Session Timeline</h3>
+        <form class="note-form" id="noteForm">
+          <textarea id="noteText" placeholder="메모: 확인한 사실, 결정, 다음에 할 일 (Ctrl+Enter 저장)"></textarea>
+          <div class="row"><button type="submit" class="primary">메모 남기기</button></div>
+        </form>
+        <div class="tl-tools"><span id="tlInfo">아직 기록이 없습니다</span><span class="spacer"></span>
+          <button type="button" id="tlStarOnly" aria-pressed="false">★만</button><button type="button" id="tlOrder">최신순</button></div>
+        <div id="timeline"></div>
+        <div class="report-actions">
+          <button type="button" class="ghost" id="copyReport">보고서 초안 복사</button>
+          <button type="button" class="ghost" id="downloadReport">.md 내려받기</button>
+        </div>
+        <div class="toast" id="reportToast"></div>
+      </section>
+    </div>
   </aside>
 </div>
 <script>
@@ -278,6 +360,26 @@ function setBusy(b) {
 const WORKER_LABEL = { runbook_agent: "런북 담당", ops_agent: "운영 데이터 담당", action_agent: "조치 담당", FINISH: "정리" };
 const TOOL_LABEL = { retrieve_runbook: "런북 검색", search_incidents: "과거 장애 이력 조회", get_service_status: "서비스 상태 조회", restart_service: "재시작" };
 let services = {};        // 서비스 보드 캐시(승인 카드에 대상의 현재 상태를 보여 줄 때 쓴다)
+let actionsCache = [];    // 조치 실행 기록 캐시(변경 목록·보고서용)
+const CHANGE_WINDOW_H = 72;  // "최근 변경"으로 강조하는 배포 기간(시간)
+// 이 화면의 대응 기록: 질의·답변·승인·확인·메모·평가를 시간순으로 쌓는다(타임라인과 보고서 초안의 재료).
+let session = { startedAt: null, events: [], responses: [], newestFirst: true, starOnly: false };
+
+// ---- 조사 결과 분류(Grafana Sift: 발견 / 이상 없음 / 실패) ----
+const OUTCOME_LABEL = { found: "발견", clear: "이상 없음", failed: "실패" };
+function outcomeOf(t) {
+  if (t.step !== "tool_call") return null;
+  const tool = t.input && t.input.tool, o = t.output || {};
+  if (o.error) return "failed";
+  if (tool === "retrieve_runbook") return (o.doc_ids || []).length ? "found" : "clear";
+  if (tool === "search_incidents") return (o.incidents || []).length ? "found" : "clear";
+  if (tool === "get_service_status") {
+    if (o.found === false) return "failed";
+    if (o.service === "all") return Object.values(o.services || {}).some((s) => s.status !== "healthy") ? "found" : "clear";
+    return o.status && o.status !== "healthy" ? "found" : "clear";
+  }
+  return null;   // restart_service는 조사가 아니라 조치라 분류하지 않는다
+}
 
 function stepLabel(t) {
   const o = t.output, i = t.input;
@@ -315,7 +417,8 @@ function progressCard(title) {
       const l = stepLabel(step); if (!l) return;
       const li = document.createElement("li");
       if (l[2]) li.className = l[2];
-      li.innerHTML = `${esc(l[0])}${l[1] ? ` <span class="sub">${esc(l[1])}</span>` : ""}`;
+      const oc = outcomeOf(step);
+      li.innerHTML = `${esc(l[0])}${l[1] ? ` <span class="sub">${esc(l[1])}</span>` : ""}${oc ? `<span class="oc ${oc}">${OUTCOME_LABEL[oc]}</span>` : ""}`;
       ol.insertBefore(li, now); scrollDown();
     },
     stop() { clearInterval(timer); el.remove(); return Math.round((Date.now() - t0) / 1000); },
@@ -393,6 +496,22 @@ function renderResponse(r, info = {}) {
       <div class="actions"><button class="primary" data-decision="approve">승인하고 실행</button><button class="danger" data-decision="reject">거절</button></div></div>`;
   }
 
+  // 최근 변경(Datadog Change Tracking): 이번 조사에 나온 서비스에 최근 배포가 있으면 먼저 의심하도록 띄운다.
+  const changed = involvedServices(r, info.question).map((n) => [n, services[n]]).filter(([, s]) => s && withinHours(s.last_deploy, CHANGE_WINDOW_H));
+  if (changed.length) html += `<div class="changed"><span>최근 변경</span>` + changed.map(([n, s]) =>
+    `<button type="button" data-chg="${esc(n)}" title="${esc(s.last_deploy)} — 눌러서 배포 영향 확인 질문 쓰기">${esc(n)} · ${esc(relTime(s.last_deploy))} 배포</button>`).join("") + `</div>`;
+
+  // 조사 결과 분류(Grafana Sift): 조회 단계마다 무엇을 찾았는지, 이상이 없었는지, 실패했는지 묶어 보여 준다.
+  const judged = trace.map((t) => [t, outcomeOf(t)]).filter((x) => x[1]);
+  if (judged.length) {
+    const cnt = (k) => judged.filter((x) => x[1] === k).length;
+    html += `<details class="findings"><summary>조사 결과 — 발견 ${cnt("found")} · 이상 없음 ${cnt("clear")}${cnt("failed") ? ` · 실패 ${cnt("failed")}` : ""}</summary>` +
+      ["found", "clear", "failed"].filter((k) => cnt(k)).map((k) =>
+        `<div class="grp"><div class="h"><span class="oc ${k}">${OUTCOME_LABEL[k]}</span></div><ul>` +
+        judged.filter((x) => x[1] === k).map(([t]) => { const l = stepLabel(t) || [t.step, ""]; return `<li>${esc(l[0])}${l[1] ? ` — ${esc(l[1])}` : ""}</li>`; }).join("") +
+        `</ul></div>`).join("") + `</details>`;
+  }
+
   const ctx = r.contexts || [];
   if (ctx.length) {
     html += `<div class="chips">` + ctx.map((c, i) => {
@@ -406,9 +525,16 @@ function renderResponse(r, info = {}) {
   html += `<details><summary>처리 과정 ${trace.length}단계</summary>` +
     trace.map((t, i) => `<div class="step"><span class="n">${i + 1}</span><details><summary>${esc(t.step)}</summary>
       <pre>${esc(JSON.stringify({ input: t.input, output: t.output }, null, 2))}</pre></details></div>`).join("") + `</details>`;
+  // 답변 평가(Rootly·Datadog Bits AI·AWS DevOps Agent): 결론이 맞았는지, 틀렸다면 실제 원인을 남긴다.
+  if (r.status !== "awaiting_approval" && kind !== "blocked") html += `<div class="fb"></div>`;
 
   const el = addEl("bot", html);
   decorate(el);
+  el.querySelectorAll("[data-chg]").forEach((b) => b.addEventListener("click", () =>
+    draft(`${b.dataset.chg}의 최근 배포(${relTime(services[b.dataset.chg]?.last_deploy)})가 이번 증상과 관련 있는지 확인하고, 롤백이 필요한지 런북 기준으로 알려줘`)));
+  const fb = el.querySelector(".fb");
+  if (fb) wireFeedback(fb, r.thread_id || threadId, info.question || "");
+  recordResponse(r, kind, label, info.question);
   el.querySelectorAll(".chip").forEach((b) => b.addEventListener("click", () => {
     const d = el.querySelector("details.ctxs"); d.open = true;
     const target = d.querySelector(`.ctx[data-i="${b.dataset.ctx}"]`);
@@ -425,8 +551,77 @@ function renderResponse(r, info = {}) {
     }
     decide(b.dataset.decision, el);
   }));
+  if (r.status === "awaiting_approval") el.dataset.pending = pendingText(trace);
   waitingApproval = r.status === "awaiting_approval";
   setBusy(false);
+}
+
+function pendingText(trace) {
+  return pendingActions(trace).map((a) => `${(a.args || {}).service} ${TOOL_LABEL[a.tool] || a.tool}`).join(", ");
+}
+
+// 이번 응답에 등장한 서비스(질문에 쓴 서비스 이름, 도구 인자, 승인 대기 대상, 상태·조치 근거).
+function involvedServices(r, question = r.question) {
+  const set = new Set();
+  const q = String(question || "").toLowerCase();
+  for (const n of Object.keys(services)) if (q.includes(n)) set.add(n);
+  for (const t of r.trace || []) {
+    const svc = ((t.input || {}).args || {}).service;
+    if ((t.step === "tool_call" || t.step === "approval_wait") && svc && svc !== "all") set.add(String(svc).toLowerCase());
+  }
+  for (const c of r.contexts || []) {
+    const m = c.doc_id.match(/^status\/(.+)$/) || c.doc_id.match(/^actions\/[^/]+\/(.+)$/);
+    if (m && m[1] !== "all") set.add(m[1]);
+  }
+  return [...set];
+}
+
+function plainLine(text) {
+  const line = String(text || "").split(/\r?\n/).map((s) => s.replace(/[#*`>]/g, "").replace(/^\s*[-\d.)]+\s*/, "").trim()).find(Boolean) || "";
+  return line.length > 140 ? line.slice(0, 140) + "…" : line;
+}
+
+function recordResponse(r, kind, label, question) {
+  session.responses.push({ ...r, kind, question: question || "", at: Date.now() });
+  if (r.status === "awaiting_approval") logEvent("approval", `승인 요청: ${pendingText(r.trace) || "조치"}`);
+  else if (kind === "blocked") logEvent("answer", "요청 거부 — 지시 무시·프롬프트 노출 요구");
+  else if (kind === "no_evidence") logEvent("answer", "근거 없음 — 런북에 없는 절차라 만들지 않음");
+  else logEvent("answer", plainLine(r.answer));
+  for (const t of r.trace || [])
+    if (t.step === "tool_call" && t.input && t.input.tool === "restart_service" && t.output && t.output.executed)
+      logEvent("action", `${t.output.service} 재시작 실행(가짜)`);
+}
+
+function wireFeedback(fb, tid, question) {
+  const VERDICT = { accurate: "정확함", inaccurate: "부정확함" };
+  const initial = () => {
+    fb.innerHTML = `<span>결론이 맞았나요?</span><button type="button" data-v="accurate">정확함</button><button type="button" data-v="inaccurate">부정확함</button>`;
+    fb.querySelector('[data-v="accurate"]').addEventListener("click", () => send("accurate", ""));
+    fb.querySelector('[data-v="inaccurate"]').addEventListener("click", detail);
+  };
+  const detail = () => {
+    fb.innerHTML = `<span>무엇이 틀렸나요? 실제 원인이나 빠진 점을 남기면 다음 대응에 참고합니다.</span>
+      <textarea maxlength="1000" placeholder="예: 실제 원인은 배포한 ConfigMap의 DB 주소 오타였음"></textarea>
+      <button type="button" class="primary" data-send>평가 보내기</button><button type="button" data-cancel>취소</button>`;
+    fb.querySelector("textarea").focus();
+    fb.querySelector("[data-send]").addEventListener("click", () => send("inaccurate", fb.querySelector("textarea").value.trim()));
+    fb.querySelector("[data-cancel]").addEventListener("click", initial);
+  };
+  const send = async (verdict, note) => {
+    fb.querySelectorAll("button, textarea").forEach((x) => (x.disabled = true));
+    try {
+      const res = await fetch("/feedback", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ thread_id: tid || "unknown", verdict, note, question: question.slice(0, 1000) }) });
+      if (!res.ok) throw new Error();
+      fb.innerHTML = `<span class="done">평가를 기록했습니다: ${VERDICT[verdict]}</span>${note ? `<span>— ${esc(note)}</span>` : ""}`;
+      logEvent("feedback", `${VERDICT[verdict]}${note ? ` — ${note}` : ""}`);
+    } catch {
+      fb.querySelectorAll("button, textarea").forEach((x) => (x.disabled = false));
+      fb.querySelector(".err")?.remove();
+      fb.insertAdjacentHTML("beforeend", `<span class="err" style="color:var(--bad)">저장하지 못했습니다. 다시 눌러 주세요.</span>`);
+    }
+  };
+  initial();
 }
 
 // 코드 블록에 복사 버튼을 단다(런북 명령을 바로 옮겨 쓰도록).
@@ -443,17 +638,20 @@ function decorate(el) {
   });
 }
 
+let lastQuestion = "";
 async function ask(question) {
   if (busy || waitingApproval || !question.trim()) return;
   addEl("user", esc(question));
   $("question").value = "";
+  lastQuestion = question;
+  logEvent("question", question);
   setBusy(true);
   const p = progressCard("조사 중");
   try {
     const r = await streamCall("/query/stream", threadId ? { question, thread_id: threadId } : { question }, (s) => p.add(s));
     const elapsed = p.stop();
     setThread(r.thread_id);
-    renderResponse(r, { elapsed });
+    renderResponse(r, { elapsed, question });
   } catch (e) {
     p.stop();
     addEl("bot error", "오류: " + esc(e.message));
@@ -473,7 +671,8 @@ async function decide(decision, card) {
     card.querySelector(".approval .warnline")?.remove();
     card.querySelector(".approval .actions").innerHTML =
       `<span class="st ${decision === "approve" ? "healthy" : "degraded"}">${decision === "approve" ? "승인해 실행을 요청함" : "거절함 — 실행하지 않음"}</span>`;
-    renderResponse(r, { elapsed });
+    logEvent("approval", `${decision === "approve" ? "승인" : "거절"}: ${card.dataset.pending || "조치"}`);
+    renderResponse(r, { elapsed, question: lastQuestion });
     loadActions(); loadServices();
   } catch (e) {
     p.stop();
@@ -488,25 +687,98 @@ async function decide(decision, card) {
 const SEVERITY = { unhealthy: 0, degraded: 1, healthy: 2 };
 function hoursSince(iso) { const t = Date.parse(iso); return Number.isNaN(t) ? null : (Date.now() - t) / 3600000; }
 
+function withinHours(iso, h) { const x = hoursSince(iso); return x != null && x >= 0 && x < h; }
+function relTime(iso) {
+  const h = hoursSince(iso);
+  if (h == null) return String(iso || "");
+  if (h < 0) return "방금";
+  if (h < 1) return `${Math.max(1, Math.round(h * 60))}분 전`;
+  if (h < 48) return `${Math.round(h)}시간 전`;
+  return `${Math.round(h / 24)}일 전`;
+}
+function hhmm(t, sec = false) {
+  return new Date(t).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: sec ? "2-digit" : undefined, hour12: false });
+}
+
+// ---- 확인(Opsgenie Acknowledge): 누군가 이 경보를 보고 있다는 표시. 상태가 바뀌면 확인이 풀린다. 이 브라우저에만 저장한다. ----
+const ACK_KEY = "runbook-ai.acks";
+let acks = {};
+try { acks = JSON.parse(localStorage.getItem(ACK_KEY) || "{}") || {}; } catch { acks = {}; }
+function saveAcks() { try { localStorage.setItem(ACK_KEY, JSON.stringify(acks)); } catch { /* 저장소를 못 쓰면 이 화면에서만 유지 */ } }
+function ackOf(n) { const a = acks[n], s = services[n]; return a && s && a.status === s.status && s.status !== "healthy" ? a : null; }
+function toggleAck(n) {
+  if (ackOf(n)) { delete acks[n]; logEvent("ack", `${n} 확인 취소`); }
+  else { acks[n] = { at: Date.now(), status: services[n].status }; logEvent("ack", `${n} 경보 확인(${services[n].status})`); }
+  saveAcks(); renderServices(); renderImpact();
+}
+// 미확인 문제 → 확인한 문제 → 정상 순, 같은 무리 안에서는 심각한 순.
+function sortedServices() {
+  const rank = (n) => (services[n].status === "healthy" ? 2 : ackOf(n) ? 1 : 0);
+  return Object.keys(services).sort((a, b) => rank(a) - rank(b) || (SEVERITY[services[a].status] ?? 3) - (SEVERITY[services[b].status] ?? 3) || a.localeCompare(b));
+}
+
 async function loadServices() {
   try {
     services = await (await fetch("/services")).json();
-    const names = Object.keys(services).sort((a, b) => (SEVERITY[services[a].status] ?? 3) - (SEVERITY[services[b].status] ?? 3) || a.localeCompare(b));
-    const count = (st) => names.filter((n) => services[n].status === st).length;
-    $("svcSummary").innerHTML = `<span class="st unhealthy">비정상 <b>${count("unhealthy")}</b></span>` +
-      `<span class="st degraded">저하 <b>${count("degraded")}</b></span><span class="st healthy">정상 <b>${count("healthy")}</b></span>`;
-    $("services").innerHTML = names.length ? names.map((n) => {
-      const s = services[n], h = hoursSince(s.last_deploy);
-      const recent = h != null && h >= 0 && h < 24 ? `<span class="tag" title="${esc(s.last_deploy)}">${Math.max(1, Math.round(h))}시간 전 배포</span>` : "";
-      return `<div class="svc ${esc(s.status)}" data-svc="${esc(n)}" title="눌러서 이 서비스 조사 질문 쓰기"><div class="row"><span class="name">${esc(n)}${recent}</span><span class="st ${esc(s.status)}">${esc(s.status)}</span></div>
-        <div class="detail">파드 ${esc(s.pods_ready)} · 재시작 ${esc(s.restarts_last_hour)}회/시간 · 에러율 ${esc(s.error_rate_pct)}% · p95 ${esc(s.p95_latency_ms)}ms</div>
-        ${s.note ? `<div class="detail">${esc(s.note)}</div>` : ""}</div>`;
-    }).join("") : `<div class="empty">서비스가 없습니다.</div>`;
-    $("services").querySelectorAll(".svc").forEach((d) => d.addEventListener("click", () => {
-      const s = services[d.dataset.svc];
-      draft(`${d.dataset.svc}${s && s.note ? ` (${s.note})` : ""} 현재 상태와 과거 비슷한 장애를 확인하고 대응 절차를 알려줘`);
-    }));
+    renderServices(); renderChanges(); renderImpact();
   } catch { $("services").innerHTML = `<div class="empty">상태를 불러오지 못했습니다.</div>`; }
+}
+
+function renderServices() {
+  const names = sortedServices();
+  const count = (st) => names.filter((n) => services[n].status === st).length;
+  const unacked = names.filter((n) => services[n].status !== "healthy" && !ackOf(n)).length;
+  $("svcSummary").innerHTML = `<span class="st unhealthy">비정상 <b>${count("unhealthy")}</b></span>` +
+    `<span class="st degraded">저하 <b>${count("degraded")}</b></span><span class="st healthy">정상 <b>${count("healthy")}</b></span>` +
+    (unacked ? `<span>미확인 <b>${unacked}</b></span>` : "");
+  $("services").innerHTML = names.length ? names.map((n) => {
+    const s = services[n], a = ackOf(n), h = hoursSince(s.last_deploy);
+    const recent = withinHours(s.last_deploy, CHANGE_WINDOW_H) ? `<span class="tag" title="${esc(s.last_deploy)}">${Math.max(1, Math.round(h))}시간 전 배포</span>` : "";
+    const ack = s.status === "healthy" ? "" : a
+      ? `<span class="acked-tag" title="${esc(hhmm(a.at))}에 확인">확인함</span><button type="button" class="ack" data-ack="${esc(n)}" title="확인 취소">취소</button>`
+      : `<button type="button" class="ack" data-ack="${esc(n)}" title="이 경보를 보고 있다고 표시(이 브라우저에 저장)">확인</button>`;
+    return `<div class="svc ${esc(s.status)}${a ? " acked" : ""}" data-svc="${esc(n)}" title="눌러서 이 서비스 조사 질문 쓰기"><div class="row"><span class="name"><span class="nm">${esc(n)}</span>${recent}</span><span class="right"><span class="st ${esc(s.status)}">${esc(s.status)}</span>${ack}</span></div>
+      <div class="detail">파드 ${esc(s.pods_ready)} · 재시작 ${esc(s.restarts_last_hour)}회/시간 · 에러율 ${esc(s.error_rate_pct)}% · p95 ${esc(s.p95_latency_ms)}ms</div>
+      ${s.note ? `<div class="detail">${esc(s.note)}</div>` : ""}</div>`;
+  }).join("") : `<div class="empty">서비스가 없습니다.</div>`;
+  $("services").querySelectorAll(".svc").forEach((d) => d.addEventListener("click", () => askAbout(d.dataset.svc)));
+  $("services").querySelectorAll("[data-ack]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); toggleAck(b.dataset.ack); }));
+}
+
+function askAbout(n) {
+  const s = services[n];
+  draft(`${n}${s && s.note ? ` (${s.note})` : ""} 현재 상태와 과거 비슷한 장애를 확인하고 대응 절차를 알려줘`);
+}
+
+// ---- 영향 요약(Dynatrace Problem overview·Datadog Impacts): 영향 서비스, 가장 심각한 곳, 최근 변경, 대응 경과 ----
+function renderImpact() {
+  const names = sortedServices();
+  if (!names.length) return;
+  const bad = names.filter((n) => services[n].status !== "healthy");
+  const changes = names.filter((n) => withinHours(services[n].last_deploy, CHANGE_WINDOW_H));
+  const worst = bad.slice().sort((a, b) => SEVERITY[services[a].status] - SEVERITY[services[b].status])[0];
+  const started = session.startedAt;
+  $("impact").innerHTML = `<span class="lead">Impact</span>` +
+    `<span>영향 서비스 <b>${bad.length}</b>/${names.length}${worst ? ` · 가장 심각 <b>${esc(worst)}</b>(${esc(services[worst].status)})` : ""}</span>` +
+    (bad.length ? `<span class="svcs">${bad.map((n) => `<button type="button" class="${esc(services[n].status)}${ackOf(n) ? " acked" : ""}" data-svc="${esc(n)}" title="${esc(services[n].note || services[n].status)}${ackOf(n) ? " · 확인함" : ""} — 눌러서 조사 질문 쓰기">${esc(n)}</button>`).join("")}</span>` : "") +
+    `<span>최근 ${CHANGE_WINDOW_H}시간 배포 <b>${changes.length}</b>${changes.length ? ` (${changes.map(esc).join(", ")})` : ""}</span>` +
+    `<span class="clock">${started ? `대응 시작 <b>${esc(hhmm(started))}</b> · 경과 <b>${Math.max(0, Math.floor((Date.now() - started) / 60000))}분</b>` : "대응 시작 전"}</span>`;
+  $("impact").querySelectorAll("[data-svc]").forEach((b) => b.addEventListener("click", () => askAbout(b.dataset.svc)));
+}
+
+// ---- 변경 목록(Datadog Change Tracking): 배포와 사람이 승인한 조치를 한 줄로 시간순 ----
+function renderChanges() {
+  const items = [];
+  for (const [n, s] of Object.entries(services))
+    if (withinHours(s.last_deploy, 24 * 7)) items.push({ t: Date.parse(s.last_deploy), kind: "deploy", k: "배포", what: n, iso: s.last_deploy });
+  for (const a of actionsCache) {
+    const t = Date.parse(String(a.executed_at || "").replace(/([+-]\d{2})(\d{2})$/, "$1:$2"));
+    items.push({ t: Number.isNaN(t) ? 0 : t, kind: "action", k: "조치", what: `${a.target} ${TOOL_LABEL[a.action] || a.action}`, iso: a.executed_at || "" });
+  }
+  items.sort((a, b) => b.t - a.t);
+  $("changes").innerHTML = items.length ? items.slice(0, 10).map((x) =>
+    `<div class="chg"><span class="k ${x.kind}">${x.k}</span><span class="what">${esc(x.what)}</span><span class="when" title="${esc(x.iso)}">${x.t ? esc(relTime(new Date(x.t).toISOString())) : esc(x.iso)}</span></div>`).join("")
+    : `<div class="empty">최근 7일 안의 배포·조치가 없습니다.</div>`;
 }
 
 async function loadIncidents() {
@@ -540,11 +812,93 @@ async function loadModels() {
 
 async function loadActions() {
   try {
-    const { actions } = await (await fetch("/actions")).json();
-    $("actions").innerHTML = actions.length ? actions.slice().reverse().map((a) =>
-      `<div class="log"><code>${esc(a.action)}</code> → <strong>${esc(a.target)}</strong><div class="when">${esc(a.executed_at || "")}</div></div>`).join("")
-      : `<div class="empty">아직 실행한 조치가 없습니다.</div>`;
-  } catch { $("actions").innerHTML = `<div class="empty">기록을 불러오지 못했습니다.</div>`; }
+    actionsCache = (await (await fetch("/actions")).json()).actions || [];
+    renderChanges();
+  } catch { $("changes").innerHTML = `<div class="empty">기록을 불러오지 못했습니다.</div>`; }
+}
+
+// ---- 세션 타임라인·메모(Datadog timeline·CloudWatch investigation feed), 별표(FireHydrant) ----
+const KIND_LABEL = { question: "질의", answer: "답변", approval: "승인", action: "조치", ack: "확인", note: "메모", feedback: "평가" };
+function logEvent(kind, text) {
+  if (!session.startedAt) session.startedAt = Date.now();
+  session.events.push({ at: Date.now(), kind, text: String(text), star: kind === "action" || kind === "approval" });
+  renderTimeline(); renderImpact();
+}
+
+function renderTimeline() {
+  const ev = session.events;
+  $("tlCount").textContent = ev.length ? ` ${ev.length}` : "";
+  $("tlInfo").textContent = ev.length ? `${ev.length}건 · 별표 ${ev.filter((e) => e.star).length}건` : "아직 기록이 없습니다";
+  $("tlOrder").textContent = session.newestFirst ? "최신순" : "오래된순";
+  $("tlStarOnly").setAttribute("aria-pressed", String(session.starOnly));
+  $("tlStarOnly").classList.toggle("ghost", session.starOnly);
+  let list = ev.map((e, i) => ({ ...e, i })).filter((e) => !session.starOnly || e.star);
+  if (session.newestFirst) list = list.reverse();
+  $("timeline").innerHTML = list.length ? list.map((e) =>
+    `<div class="tl"><span class="t">${esc(hhmm(e.at, true))}</span><span class="txt"><span class="kind k-${e.kind}">${KIND_LABEL[e.kind] || e.kind}</span>${esc(e.text)}</span>` +
+    `<button type="button" class="star${e.star ? " on" : ""}" data-i="${e.i}" aria-label="별표" title="별표한 기록은 보고서의 주요 기록에 들어갑니다">${e.star ? "★" : "☆"}</button></div>`).join("")
+    : `<div class="empty">${session.starOnly ? "별표한 기록이 없습니다." : "질의·승인·메모가 여기에 시간순으로 쌓입니다."}</div>`;
+  $("timeline").querySelectorAll(".star").forEach((b) => b.addEventListener("click", () => {
+    const e = session.events[Number(b.dataset.i)]; e.star = !e.star; renderTimeline();
+  }));
+}
+
+// ---- 보고서 초안(CloudWatch incident report·FireHydrant retrospective 구성): 화면 기록만으로 Markdown을 만든다 ----
+function buildReport() {
+  const fmt = (t) => new Date(t).toLocaleString("ko-KR", { hour12: false });
+  const ev = session.events, R = session.responses;
+  const now = Date.now(), start = session.startedAt;
+  const bad = sortedServices().filter((n) => services[n].status !== "healthy");
+  const involved = [...new Set(R.flatMap((r) => involvedServices(r)))];
+  const lastDone = R.filter((r) => r.status === "completed" && r.kind === "completed").at(-1);
+  const ctxIds = [...new Set(R.flatMap((r) => (r.contexts || []).map((c) => c.doc_id)))];
+  const myActions = actionsCache.filter((a) => a.thread_id && a.thread_id === threadId);
+  const L = [];
+  L.push("# 장애 대응 보고서 초안", "",
+    `- 작성: ${fmt(now)} · 런북 대응 어시스턴트(모든 데이터와 조치는 가짜)`,
+    `- 대화: ${threadId || "-"}`,
+    `- 대응 시작: ${start ? fmt(start) : "-"} · 경과 ${start ? Math.floor((now - start) / 60000) : 0}분`, "");
+  L.push("## 1. 개요", "");
+  const qs = ev.filter((e) => e.kind === "question");
+  L.push(qs.length ? `- 첫 보고: ${qs[0].text}` : "- 질의 없음", `- 질의 ${qs.length}건, 답변 ${R.length}건`, "");
+  L.push("## 2. 영향", "");
+  if (bad.length) bad.forEach((n) => L.push(`- ${n}: ${services[n].status} · 파드 ${services[n].pods_ready} · 에러율 ${services[n].error_rate_pct}% · p95 ${services[n].p95_latency_ms}ms${services[n].note ? ` · ${services[n].note}` : ""}${ackOf(n) ? " · 확인함" : ""}`));
+  else L.push("- 지금 비정상·저하 서비스 없음");
+  if (involved.length) L.push(`- 이번 조사에서 본 서비스: ${involved.join(", ")}`);
+  const recent = Object.keys(services).filter((n) => withinHours(services[n].last_deploy, CHANGE_WINDOW_H));
+  L.push(`- 최근 ${CHANGE_WINDOW_H}시간 배포: ${recent.length ? recent.map((n) => `${n}(${relTime(services[n].last_deploy)})`).join(", ") : "없음"}`, "");
+  L.push("## 3. 대응 경과", "");
+  ev.length ? ev.forEach((e) => L.push(`- ${hhmm(e.at, true)} [${KIND_LABEL[e.kind] || e.kind}]${e.star ? " ★" : ""} ${e.text}`)) : L.push("- 기록 없음");
+  L.push("");
+  L.push("## 4. 원인 분석과 대응 절차", "", lastDone ? lastDone.answer.trim() : "(근거가 있는 완료 답변이 아직 없습니다)", "");
+  L.push("## 5. 실행한 조치", "");
+  const decisions = ev.filter((e) => e.kind === "approval" || e.kind === "action");
+  decisions.length ? decisions.forEach((e) => L.push(`- ${hhmm(e.at, true)} ${e.text}`)) : L.push("- 승인·실행한 조치 없음");
+  myActions.forEach((a) => L.push(`- 실행 로그: ${a.action} → ${a.target} (${a.executed_at})`));
+  L.push("");
+  L.push("## 6. 근거", "");
+  ctxIds.length ? ctxIds.forEach((id) => L.push(`- \`${id}\``)) : L.push("- 인용한 근거 없음");
+  L.push("");
+  const stars = ev.filter((e) => e.star && e.kind !== "action" && e.kind !== "approval");
+  L.push("## 7. 주요 기록과 다음 단계", "");
+  const notes = ev.filter((e) => e.kind === "note");
+  if (stars.length) stars.forEach((e) => L.push(`- ★ ${e.text}`));
+  notes.filter((e) => !e.star).forEach((e) => L.push(`- 메모: ${e.text}`));
+  if (!stars.length && !notes.length) L.push("- (메모를 남기면 여기에 들어갑니다)");
+  L.push("");
+  const fbs = ev.filter((e) => e.kind === "feedback");
+  L.push("## 8. 어시스턴트 답변 평가", "");
+  fbs.length ? fbs.forEach((e) => L.push(`- ${e.text}`)) : L.push("- 평가 없음");
+  return L.join("\n") + "\n";
+}
+
+function toast(msg) { $("reportToast").textContent = msg; setTimeout(() => ($("reportToast").textContent = ""), 2500); }
+
+function showTab(which) {
+  const board = which === "board";
+  $("tabBoard").hidden = !board; $("tabTimeline").hidden = board;
+  $("tabBoardBtn").setAttribute("aria-selected", String(board));
+  $("tabTimelineBtn").setAttribute("aria-selected", String(!board));
 }
 
 function draft(text) {
@@ -565,15 +919,53 @@ $("question").addEventListener("keydown", (e) => {
 });
 $("newChat").addEventListener("click", () => {
   if (busy) return;
-  setThread(null); waitingApproval = false;
+  if (session.events.length && !confirm("새 대화를 시작하면 이 화면의 타임라인·메모가 지워집니다. 필요하면 먼저 보고서를 복사하세요. 계속할까요?")) return;
+  setThread(null); waitingApproval = false; lastQuestion = "";
+  session = { startedAt: null, events: [], responses: [], newestFirst: session.newestFirst, starOnly: false };
   $("messages").innerHTML = "";
+  renderTimeline(); renderImpact();
   setBusy(false);
   $("question").focus();
 });
 $("refreshSvc").addEventListener("click", loadServices);
-$("refreshLog").addEventListener("click", loadActions);
+$("refreshLog").addEventListener("click", () => { loadActions(); loadServices(); });
+$("tabBoardBtn").addEventListener("click", () => showTab("board"));
+$("tabTimelineBtn").addEventListener("click", () => showTab("timeline"));
+$("noteForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = $("noteText").value.trim();
+  if (!text) return;
+  logEvent("note", text);
+  $("noteText").value = "";
+});
+$("noteText").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); $("noteForm").requestSubmit(); }
+});
+$("tlOrder").addEventListener("click", () => { session.newestFirst = !session.newestFirst; renderTimeline(); });
+$("tlStarOnly").addEventListener("click", () => { session.starOnly = !session.starOnly; renderTimeline(); });
+$("copyReport").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(buildReport()); toast("보고서 초안을 복사했습니다."); }
+  catch { toast("복사하지 못했습니다. .md 내려받기를 쓰세요."); }
+});
+$("downloadReport").addEventListener("click", () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([buildReport()], { type: "text/markdown;charset=utf-8" }));
+  const d = new Date(), pad = (x) => String(x).padStart(2, "0");
+  a.download = `incident-report-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.md`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast("보고서 초안을 내려받았습니다.");
+});
+// "/" 키로 입력창에 바로 간다(입력 중일 때는 그대로 글자 입력).
+document.addEventListener("keydown", (e) => {
+  if (e.key === "/" && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "") && !$("question").disabled) {
+    e.preventDefault(); $("question").focus();
+  }
+});
+renderTimeline();
 loadServices(); loadActions(); loadIncidents(); loadModels();
 setInterval(() => { if (!busy) loadServices(); }, 30000);
+setInterval(renderImpact, 20000);   // 대응 경과 시간 갱신
 </script>
 </body>
 </html>

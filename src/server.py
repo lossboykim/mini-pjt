@@ -1,4 +1,5 @@
-"""FastAPI 서버: POST /query, POST /approve, GET /actions(가짜 조치 실행 로그), GET /services(서비스 상태), GET /(웹 화면)."""
+"""FastAPI 서버: POST /query, POST /approve, GET /actions(가짜 조치 실행 로그), GET /services(서비스 상태),
+POST·GET /feedback(답변 피드백), GET /(웹 화면)."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,7 +7,7 @@ from typing import Literal, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 UI_FILE = Path(__file__).resolve().parent / "static" / "index.html"
 
@@ -21,9 +22,17 @@ class ApproveRequest(BaseModel):
     decision: Literal["approve", "reject"]
 
 
+class FeedbackRequest(BaseModel):
+    """답변 피드백: 결론이 맞았는지와, 틀렸다면 실제 원인이나 빠진 점."""
+    thread_id: str = Field(min_length=1, max_length=100)
+    verdict: Literal["accurate", "inaccurate"]
+    note: str = Field(default="", max_length=1000)
+    question: str = Field(default="", max_length=1000)
+
+
 def create_app(agent=None) -> FastAPI:
     app = FastAPI(title="런북 대응 어시스턴트")
-    holder = {"agent": agent}
+    holder = {"agent": agent, "feedback": None}
 
     def get_agent():
         if holder["agent"] is None:
@@ -83,6 +92,29 @@ def create_app(agent=None) -> FastAPI:
         return {role: status.get(role, {"role": role, "current": cands[0].label, "configured": cands[0].label,
                                         "checked": False, "events": []})
                 for role, cands in ROLE_CANDIDATES.items()}
+
+    @app.post("/feedback")
+    def feedback(req: FeedbackRequest):
+        """답변 피드백을 실행 로그 옆 feedback.jsonl에 한 줄로 남긴다. 비밀값은 가려서 저장한다."""
+        import time
+        from src.retriever import mask_secrets
+        entry = {"thread_id": req.thread_id, "verdict": req.verdict, "note": mask_secrets(req.note.strip()),
+                 "question": mask_secrets(req.question.strip()), "at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+        feedback_log().append(entry)
+        return {"saved": True, "feedback": entry}
+
+    @app.get("/feedback")
+    def feedback_list(limit: int = 50):
+        """최근 피드백(최신순)과 정확·부정확 개수."""
+        items = feedback_log().read()
+        counts = {v: sum(1 for e in items if e.get("verdict") == v) for v in ("accurate", "inaccurate")}
+        return {"counts": counts, "feedback": items[::-1][: max(1, min(limit, 200))]}
+
+    def feedback_log():
+        if holder["feedback"] is None:
+            from src.tools import ActionLog
+            holder["feedback"] = ActionLog(get_agent().action_log.path.parent / "feedback.jsonl")
+        return holder["feedback"]
 
     @app.get("/", include_in_schema=False)
     def ui():
