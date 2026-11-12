@@ -125,11 +125,13 @@ def _fields(text: str) -> dict[str, str]:
     return out
 
 
-def ops_reference(ops_contexts: list[dict], user_text: str, symptom_cues=()) -> tuple[list[str], list[dict]]:
+def ops_reference(ops_contexts: list[dict], user_text: str, symptom_cues=(), member_cues=None) -> tuple[list[str], list[dict]]:
     """이미 조회한 운영 데이터를 되묻는 답의 참고로 만든다: 사용자가 말한 서비스의 현재 상태, 비슷한 과거 장애(증상과 원인).
 
     과거 장애의 조치는 쓰지 않는다: 지금 원인이 정해지기 전에 과거에 한 조치를 따라 고르게 하지 않기 위해서다.
     symptom_cues가 있으면 그 증상이 나온 과거 장애만 고른다(검색이 느슨하게 돌려준 관련 없는 장애를 빼기 위해서다).
+    member_cues(런북 번호 -> 원인 단서)가 있으면, 과거 장애의 증상·원인이 후보 중 한 곳의 단서에만 맞을 때 "과거에는 ②번 경우였다"를
+    붙인다. 과거 사례가 어느 후보 원인이었는지 알려 구분을 돕는 것이고, 지금의 원인을 정하는 것은 아니다.
     """
     lines: list[str] = []
     used: list[dict] = []
@@ -150,13 +152,19 @@ def ops_reference(ops_contexts: list[dict], user_text: str, symptom_cues=()) -> 
     for c in incidents:
         f = _fields(c["text"])
         what = " / ".join(f"{k} {f[k]}" for k in ("증상", "원인") if f.get(k))
-        lines.append(f"- 비슷한 과거 장애 · {c['doc_id'].split('/', 1)[1]}({f.get('발생일', '')}): {what}")
+        link = ""
+        if member_cues:
+            body = f"{f.get('증상', '')} {f.get('원인', '')}".lower()
+            hit = [(n, rid) for n, (rid, cues) in enumerate(member_cues.items()) if any(cue in body for cue in cues)]
+            if len(hit) == 1:  # 한 후보의 단서에만 맞을 때만 연결한다(둘 다 맞거나 둘 다 아니면 연결하지 않는다)
+                link = f" → 과거에는 {CIRCLED[hit[0][0]]} {hit[0][1]} 쪽이었다"
+        lines.append(f"- 비슷한 과거 장애 · {c['doc_id'].split('/', 1)[1]}({f.get('발생일', '')}): {what}{link}")
         used.append(c)
     return lines, used
 
 
 def build_clarification(decision: Decision, docs, user_names_service: bool, ops_contexts=None,
-                        user_text: str = "", symptom_cues=()) -> tuple[str, list[dict], list[str]]:
+                        user_text: str = "", symptom_cues=(), member_cues=None) -> tuple[str, list[dict], list[str]]:
     """구분 조건을 되묻는 답, 근거(contexts), 인용한 doc_id를 만든다. 런북의 조치 절차는 쓰지 않는다."""
     lines = ["증상은 같지만 원인에 따라 조치가 다른 런북이 있어, 지금 말씀하신 내용만으로는 하나를 고를 수 없습니다. "
              "어느 쪽인지 먼저 확인해 주세요. 조치 절차는 원인이 정해진 뒤에 안내합니다.", "", "**어느 경우인가요?**"]
@@ -177,7 +185,7 @@ def build_clarification(decision: Decision, docs, user_names_service: bool, ops_
         for c in _contexts_for(chunks, quoted):
             if all(x["doc_id"] != c["doc_id"] for x in contexts):
                 contexts.append(c)
-    ref, used = ops_reference(ops_contexts or [], user_text, symptom_cues)
+    ref, used = ops_reference(ops_contexts or [], user_text, symptom_cues, member_cues)
     if ref:
         lines += ["", "**참고: 지금까지 확인한 운영 데이터**", *ref]
         contexts += used

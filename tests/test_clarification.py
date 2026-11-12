@@ -375,3 +375,35 @@ def test_incident_cues_default_to_the_symptom_cues_and_db_group_has_its_own():
     assert by_id["gateway-502"].incident_cues == by_id["gateway-502"].symptom_cues  # 지정하지 않으면 증상 단서를 쓴다
     db = by_id["db-timeout"]
     assert db.incident_cues and "타임아웃" not in db.incident_cues  # 서비스 종류를 가리지 않는 말은 쓰지 않는다
+
+
+@pytest.mark.parametrize("question,group_id,expected", [
+    ("api-gateway 응답이 느리고 502 에러가 간헐적으로 나", "gateway-502", {"INC-1003": "① RB-03", "INC-1004": "② RB-04"}),
+    ("DB 연결 타임아웃이 계속 나", "db-timeout", {"INC-1005": "① RB-05", "INC-1007": "② RB-06"}),
+    ("Pod가 Pending에서 안 넘어가", "pod-pending", {"INC-1008": "① RB-07", "INC-1009": "② RB-08"}),
+])
+def test_past_incidents_are_linked_to_the_candidate_they_were_in_the_real_data(question, group_id, expected):
+    """과거 장애를 나열만 하지 않고, 과거에 어느 후보 원인이었는지 연결한다(정식 평가 P02 심사의 '관련을 설명하지 않았다' 지적)."""
+    from src.agent import ops_contexts
+    from src.tools import query_incidents
+    g = next(g for g in GROUPS if g.id == group_id)
+    ctx = ops_contexts("search_incidents", {"incidents": query_incidents(question)})
+    lines, _ = dis.ops_reference(ctx, question, g.incident_cues, g.members)
+    for inc, label in expected.items():
+        line = next(ln for ln in lines if inc in ln)
+        assert f"→ 과거에는 {label} 쪽이었다" in line, line
+        assert "조치" not in line  # 과거에 한 조치는 쓰지 않는다
+
+
+def test_incident_link_is_left_out_when_both_or_neither_candidate_matches():
+    both = {"doc_id": "incidents/INC-9001", "text": "[장애 이력] INC-9001\n발생일: 2026-01-01\n증상: 502 readiness 실패와 timeout\n원인: x"}
+    none = {"doc_id": "incidents/INC-9002", "text": "[장애 이력] INC-9002\n발생일: 2026-01-02\n증상: 502 에러\n원인: 알 수 없음"}
+    g = next(g for g in GROUPS if g.id == "gateway-502")
+    lines, _ = dis.ops_reference([both, none], "api-gateway 502", g.incident_cues, g.members)
+    assert len(lines) == 2 and not any("과거에는" in ln for ln in lines)
+
+
+def test_clarification_answer_links_past_incidents_in_the_agent_flow(client):
+    r = ask(client, "api-gateway 502가 나. 과거 사례도 알려줘")  # FakeChat이 search_incidents를 부른다
+    assert "clarify" in steps(r)
+    assert "→ 과거에는 ① RB-03 쪽이었다" in r["answer"] and "→ 과거에는 ② RB-04 쪽이었다" in r["answer"]

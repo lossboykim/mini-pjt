@@ -141,12 +141,12 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
 | 승인 대기(HITL) | `src/agent.py:549` | `_approval` |
 | 최종 응답 | `src/agent.py:581` | `_final` |
 | 되묻기 게이트 결정 | `src/disambiguation.py:66` | `decide` |
-| 되묻기 답 만들기 | `src/disambiguation.py:158` | `build_clarification` |
+| 되묻기 답 만들기 | `src/disambiguation.py:166` | `build_clarification` |
 | 묶음 데이터 읽기 | `src/disambiguation.py:45` | `load_groups` |
 | 후속 답 재검색 보장 | `src/agent.py:355` | `_ensure_retrieval` |
 | 되묻기 전 운영 데이터 조회 | `src/agent.py:378` | `_ensure_ops_data` |
-| 질의 진입 | `src/agent.py:710` | `query` |
-| 승인 재개 | `src/agent.py:719` | `approve` |
+| 질의 진입 | `src/agent.py:711` | `query` |
+| 승인 재개 | `src/agent.py:720` | `approve` |
 | 일일 한도 대체 | `src/llm.py:194` | `FailoverChat` |
 | MCP 세션 재사용 | `src/mcp_server.py:70` | `_SessionWorker` |
 | 쿼리 확장 | `src/retriever.py:143` | `expand_query` |
