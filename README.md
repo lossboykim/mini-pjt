@@ -140,9 +140,9 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
 | 에이전트 클래스 | `src/agent.py:274` | `RunbookAgent` |
 | 승인 대기(HITL) | `src/agent.py:549` | `_approval` |
 | 최종 응답 | `src/agent.py:581` | `_final` |
-| 되묻기 게이트 결정 | `src/disambiguation.py:64` | `decide` |
-| 되묻기 답 만들기 | `src/disambiguation.py:156` | `build_clarification` |
-| 묶음 데이터 읽기 | `src/disambiguation.py:44` | `load_groups` |
+| 되묻기 게이트 결정 | `src/disambiguation.py:66` | `decide` |
+| 되묻기 답 만들기 | `src/disambiguation.py:158` | `build_clarification` |
+| 묶음 데이터 읽기 | `src/disambiguation.py:45` | `load_groups` |
 | 후속 답 재검색 보장 | `src/agent.py:355` | `_ensure_retrieval` |
 | 되묻기 전 운영 데이터 조회 | `src/agent.py:378` | `_ensure_ops_data` |
 | 질의 진입 | `src/agent.py:710` | `query` |

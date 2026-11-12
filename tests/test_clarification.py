@@ -352,3 +352,26 @@ def test_clarification_options_are_not_markdown_numbers(client):
     r = ask(client, "api-gateway 502가 간헐적으로 나")
     assert "**① " in r["answer"] and "**② " in r["answer"]  # 화면 마크다운이 중첩 목록에서 번호를 다시 시작하므로 원문자를 쓴다
     assert not re.search(r"^\d+\. ", r["answer"], flags=re.M)
+
+
+@pytest.mark.parametrize("question,group_id,shown,hidden", [
+    ("api-gateway 응답이 느리고 502 에러가 간헐적으로 나", "gateway-502", {"INC-1003", "INC-1004"}, {"INC-1012"}),
+    ("DB 연결 타임아웃이 계속 나", "db-timeout", {"INC-1005", "INC-1007"}, {"INC-1004"}),  # 게이트웨이 504 타임아웃은 DB 장애가 아니다
+    ("Pod가 Pending에서 안 넘어가", "pod-pending", {"INC-1008", "INC-1009"}, {"INC-1002"}),
+])
+def test_clarification_shows_only_incidents_of_the_same_symptom_in_the_real_data(question, group_id, shown, hidden):
+    """실제 장애 이력 DB의 조회 결과를 되묻기 필터에 넣어, 증상이 다른 장애가 섞이지 않는지 본다(모델 호출 없음)."""
+    from src.agent import ops_contexts
+    from src.tools import query_incidents
+    group = next(g for g in GROUPS if g.id == group_id)
+    ctx = ops_contexts("search_incidents", {"incidents": query_incidents(question)})
+    lines, _ = dis.ops_reference(ctx, question, group.incident_cues)
+    got = {inc for inc in shown | hidden if any(inc in ln for ln in lines)}
+    assert got == shown, (group_id, got)
+
+
+def test_incident_cues_default_to_the_symptom_cues_and_db_group_has_its_own():
+    by_id = {g.id: g for g in GROUPS}
+    assert by_id["gateway-502"].incident_cues == by_id["gateway-502"].symptom_cues  # 지정하지 않으면 증상 단서를 쓴다
+    db = by_id["db-timeout"]
+    assert db.incident_cues and "타임아웃" not in db.incident_cues  # 서비스 종류를 가리지 않는 말은 쓰지 않는다

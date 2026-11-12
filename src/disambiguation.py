@@ -30,6 +30,7 @@ class Group:
     symptom: str
     symptom_cues: tuple[str, ...]
     members: dict[str, tuple[str, ...]]  # 런북 번호("RB-03") -> 원인 단서
+    incident_cues: tuple[str, ...] = ()  # 비슷한 과거 장애를 고르는 단서(비면 symptom_cues)
 
 
 @dataclass
@@ -44,7 +45,8 @@ class Decision:
 def load_groups(path: Path | None = None) -> list[Group]:
     data = json.loads(Path(path or GROUPS_FILE).read_text(encoding="utf-8"))
     return [Group(g["id"], g["symptom"], tuple(c.lower() for c in g["symptom_cues"]),
-                  {rid: tuple(c.lower() for c in m["cues"]) for rid, m in g["members"].items()})
+                  {rid: tuple(c.lower() for c in m["cues"]) for rid, m in g["members"].items()},
+                  tuple(c.lower() for c in g.get("incident_cues", g["symptom_cues"])))
             for g in data["groups"]]
 
 
