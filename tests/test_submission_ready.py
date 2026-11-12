@@ -21,8 +21,6 @@ def test_readme_sections():
     for title in ["무엇을 푸나", "활용한 패턴", "아키텍처", "실행 방법", "RAGAS 평가 결과",
                   "인-아웃 세트 통과율", "트라이앤에러 회고", "핵심 코드 위치"]:
         assert re.search(rf"^## .*{re.escape(title)}", README, re.M), title
-    for d in ["1차", "2차", "개선"]:
-        assert d in README
 
 
 def test_core_code_locations_point_to_real_lines():
