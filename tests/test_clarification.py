@@ -279,7 +279,7 @@ def test_no_forced_retrieval_for_an_ordinary_turn(tmp_path):
 def test_clarification_includes_status_and_past_incidents_but_not_their_actions(client):
     r = ask(client, "api-gateway 502가 나. 상태 확인하고 과거 사례도 알려줘")  # FakeChat: 상태·이력 도구도 부른다
     assert "clarify" in steps(r)
-    assert "**참고: 지금까지 확인한 운영 데이터**" in r["answer"]
+    assert "**비슷한 과거 장애와 현재 상태**" in r["answer"]
     assert "현재 상태 · api-gateway" in r["answer"] and "비슷한 과거 장애 · INC-" in r["answer"]
     docs = {c["doc_id"] for c in r["contexts"]}
     assert "status/api-gateway" in docs and any(d.startswith("incidents/INC-") for d in docs)  # 인용한 운영 데이터도 근거로 담긴다
@@ -407,3 +407,10 @@ def test_clarification_answer_links_past_incidents_in_the_agent_flow(client):
     r = ask(client, "api-gateway 502가 나. 과거 사례도 알려줘")  # FakeChat이 search_incidents를 부른다
     assert "clarify" in steps(r)
     assert "→ 과거에는 ① RB-03 쪽이었다" in r["answer"] and "→ 과거에는 ② RB-04 쪽이었다" in r["answer"]
+
+
+def test_clarification_intro_mentions_the_past_incidents_in_the_answer_body(client):
+    r = ask(client, "api-gateway 502가 나. 과거 사례도 알려줘")
+    intro = r["answer"].split("**어느 경우인가요?**")[0]  # 섹션 부록이 아니라 답 본문 서두에서 말한다
+    assert "이 증상은 과거에도 있었고(INC-1003, INC-1004)" in intro
+    assert "① , ②" not in intro and "①, ② 경우가 모두 있었습니다" in intro

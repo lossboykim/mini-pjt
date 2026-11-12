@@ -166,8 +166,15 @@ def ops_reference(ops_contexts: list[dict], user_text: str, symptom_cues=(), mem
 def build_clarification(decision: Decision, docs, user_names_service: bool, ops_contexts=None,
                         user_text: str = "", symptom_cues=(), member_cues=None) -> tuple[str, list[dict], list[str]]:
     """구분 조건을 되묻는 답, 근거(contexts), 인용한 doc_id를 만든다. 런북의 조치 절차는 쓰지 않는다."""
-    lines = ["증상은 같지만 원인에 따라 조치가 다른 런북이 있어, 지금 말씀하신 내용만으로는 하나를 고를 수 없습니다. "
-             "어느 쪽인지 먼저 확인해 주세요. 조치 절차는 원인이 정해진 뒤에 안내합니다.", "", "**어느 경우인가요?**"]
+    ref, used = ops_reference(ops_contexts or [], user_text, symptom_cues, member_cues)
+    intro = ("증상은 같지만 원인에 따라 조치가 다른 런북이 있어, 지금 말씀하신 내용만으로는 하나를 고를 수 없습니다. "
+             "어느 쪽인지 먼저 확인해 주세요. 조치 절차는 원인이 정해진 뒤에 안내합니다.")
+    links = [(re.search(r"INC-\d+", ln).group(0), re.search(r"→ 과거에는 (\S)", ln).group(1)) for ln in ref if "→ 과거에는" in ln]
+    if links:  # 과거 사례를 답 본문에서 직접 말한다: 같은 증상이 과거에 어느 원인이었는지가 구분의 단서가 된다
+        labels = list(dict.fromkeys(lab for _, lab in links))
+        which = f"{labels[0]}이었습니다" if len(labels) == 1 else f"{', '.join(labels)} 경우가 모두 있었습니다"
+        intro += f" 이 증상은 과거에도 있었고({', '.join(i for i, _ in links)}), 그때 원인은 {which}."
+    lines = [intro, "", "**어느 경우인가요?**"]
     contexts: list[dict] = []
     for n, rid in enumerate(decision.members, 1):
         text, chunks = runbook_text(docs, rid)
@@ -185,9 +192,8 @@ def build_clarification(decision: Decision, docs, user_names_service: bool, ops_
         for c in _contexts_for(chunks, quoted):
             if all(x["doc_id"] != c["doc_id"] for x in contexts):
                 contexts.append(c)
-    ref, used = ops_reference(ops_contexts or [], user_text, symptom_cues, member_cues)
     if ref:
-        lines += ["", "**참고: 지금까지 확인한 운영 데이터**", *ref]
+        lines += ["", "**비슷한 과거 장애와 현재 상태**", *ref]
         contexts += used
     lines += ["", "해당하는 쪽의 확인 결과(또는 화면에 나온 오류 메시지)를 알려 주시면 그 런북의 절차만 안내하겠습니다."]
     if not user_names_service:
