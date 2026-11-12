@@ -36,3 +36,20 @@ def test_frozen_files_untouched_since_first_src_commit():
     for p in FROZEN:
         for c in git("log", "--format=%H", "--", p).splitlines():
             assert order.index(c) < src_first, (p, c)
+
+
+def test_round_results_share_frozen_hashes_and_round1_has_no_extra_modules():
+    import json
+    r1 = json.loads((ROOT / "evaluation/round1_results.json").read_text(encoding="utf-8"))
+    r2 = json.loads((ROOT / "evaluation/round2_results.json").read_text(encoding="utf-8"))
+    for p in FROZEN:
+        assert r1["frozen_file_hashes"][p] == r2["frozen_file_hashes"][p] == git("rev-parse", "HEAD:" + p), p
+    files = git("ls-tree", "-r", "--name-only", r1["measured_commit"]).splitlines()
+    for f in ("src/middleware.py", "src/mcp_server.py", "src/supervisor.py"):
+        assert f not in files, f
+
+
+def test_reports_state_counts_and_improvement():
+    for r in (1, 2):
+        assert "/ 16" in (ROOT / f"evaluation/round{r}_report.md").read_text(encoding="utf-8")
+    assert "개선폭" in (ROOT / "evaluation/round2_report.md").read_text(encoding="utf-8")

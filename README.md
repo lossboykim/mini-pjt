@@ -71,12 +71,23 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
 - Dockerfile이 있으나 **이 PC에 Docker가 없어 빌드 검증은 하지 못했다.**
 
 ## 5. RAGAS 평가 결과
-지금 기록된 RAGAS 결과는 없다. 1~10차 평가의 결과 파일과 리포트는 2026-11-12에 삭제했다.
+2026-11-12에 결과 파일을 지우고 다시 쟀다(1회 측정, 1차·2차 각각). 값은 `evaluation/ragas_round1.json`, `ragas_round2.json`에 있다.
+
+| 지표 | 1차 | 2차 |
+|---|---|---|
+| context_recall | 0.833 | 1.000 |
+| context_precision | 1.000 | 0.813 |
+| faithfulness | 0.664 | 0.848 |
+| answer_relevancy | 0.632 | 0.566 |
+
 - 산출 방식: 실제 ragas 0.4.3을 Python 3.12 평가 전용 venv(`.venv-eval`)에서 돌린다. 자체 구현이 아니다. 지표는 context_recall, context_precision, faithfulness, answer_relevancy 네 개다.
 - 기준 답안은 `evaluation/ragas_references.json`에 있고, 다시 재려면 4절의 평가 명령을 쓴다.
 
 ## 6. 인-아웃 세트 통과율
-지금 기록된 통과율은 없다. 결과 파일(`evaluation/round*_results.json`)과 리포트(`evaluation/round*_report.md`)는 2026-11-12에 삭제했다.
+2026-11-12에 다시 쟀다(1회 측정). 1차는 추가 패턴이 없는 커밋 `d2e75d0`, 2차는 현재 코드다.
+- 1차: 12/16 (75.0%), 가드레일 4/4. 실패 P03, P04, E02, E03.
+- 2차: 16/16 (100%), 가드레일 4/4 (목표 13건 이상, 가드레일 100% 달성).
+- 개선폭: +4건. 주요 개선은 증상 질의 런북 우선, 서비스 이름 없는 질의의 전체 상태 요약, 승인 전 실행 방지와 승인 결과 안내. 한계: 1회 측정이라 LLM 응답 변동이 있고, 1차 이후 에이전트가 여러 번 바뀌었다. 자세한 내용은 `evaluation/round1_report.md`, `round2_report.md`.
 - 평가 세트는 고정 파일 세 개(`evaluation/test_queries.csv`, `judge_prompt.md`, `rubric.py`)다. 16건(positive·negative·edge·guardrail)이며, `src/`보다 먼저 커밋했고 그 뒤로 바꾸지 않았다(`tests/test_eval_protocol.py`가 검사한다).
 - 가드레일 케이스는 LLM 심사 없이 `rubric.py`의 규칙으로 판정한다.
 - 평가를 다시 돌리면 `evaluation/round<N>_results.json`에 측정한 커밋, 고정 파일 해시, 케이스별 판정이 남는다.

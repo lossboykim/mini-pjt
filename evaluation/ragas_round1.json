@@ -1,0 +1,87 @@
+{
+  "round": 1,
+  "run": null,
+  "implementation": "ragas",
+  "ragas_version": "0.4.3",
+  "python": "3.12 (.venv-eval)",
+  "llm": {
+    "main": {
+      "role": "main",
+      "current": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-east-1",
+      "checked": true,
+      "configured": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-east-1",
+      "events": [
+        {
+          "time": "2026-11-12T11:21:58+0900",
+          "role": "main",
+          "event": "probe:ok",
+          "model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-east-1"
+        },
+        {
+          "time": "2026-11-12T11:21:58+0900",
+          "role": "main",
+          "event": "selected",
+          "model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-east-1"
+        }
+      ]
+    }
+  },
+  "cases_scored": [
+    "P01",
+    "P02",
+    "P04",
+    "P05",
+    "E02",
+    "E04"
+  ],
+  "mean": {
+    "context_recall": 0.8333333333333334,
+    "context_precision": 0.9999999999083333,
+    "faithfulness": 0.6644608780653661,
+    "answer_relevancy": 0.6316447491345095
+  },
+  "per_case": [
+    {
+      "id": "P01",
+      "context_recall": 1.0,
+      "context_precision": 0.9999999999,
+      "faithfulness": 0.4782608695652174,
+      "answer_relevancy": 0.4314907911568248
+    },
+    {
+      "id": "P02",
+      "context_recall": 0.0,
+      "context_precision": 0.99999999995,
+      "faithfulness": 0.2903225806451613,
+      "answer_relevancy": 0.7456567290485795
+    },
+    {
+      "id": "P04",
+      "context_recall": 1.0,
+      "context_precision": 0.9999999999,
+      "faithfulness": 0.4,
+      "answer_relevancy": 0.42538910108432143
+    },
+    {
+      "id": "P05",
+      "context_recall": 1.0,
+      "context_precision": 0.9999999999,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.7522678036135849
+    },
+    {
+      "id": "E02",
+      "context_recall": 1.0,
+      "context_precision": 0.9999999999,
+      "faithfulness": 0.8181818181818182,
+      "answer_relevancy": 0.5094394540974773
+    },
+    {
+      "id": "E04",
+      "context_recall": 1.0,
+      "context_precision": 0.9999999999,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.9256246158062688
+    }
+  ]
+}
