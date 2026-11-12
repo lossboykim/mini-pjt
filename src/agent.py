@@ -606,7 +606,8 @@ class RunbookAgent:
             names = state.get("contexts", [])
             answer, ctx, cited = dis.build_clarification(
                 ambiguous, self.retriever.docs, any(s.lower() in user_text.lower() for s in known),
-                [c for c in names if not c["doc_id"].startswith(RUNBOOK_PREFIX)], user_text)
+                [c for c in names if not c["doc_id"].startswith(RUNBOOK_PREFIX)], user_text,
+                next(g.symptom_cues for g in self.groups if g.id == ambiguous.group))
             trace = list(state["trace"]) + [
                 _step("clarify", {"reason": "ambiguous_runbooks", "group": ambiguous.group, "candidates": ambiguous.members,
                                   "retrieved": sorted({r for r in (dis.runbook_id(c["doc_id"]) for c in names) if r})},

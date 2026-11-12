@@ -21,6 +21,7 @@ REDACTED = "[REDACTED]"
 
 AMBIGUOUS, RESOLVED, BOTH = "ambiguous", "resolved", "both"
 _RB_RE = re.compile(r"rb-(\d+)", re.IGNORECASE)
+CIRCLED = "①②③④⑤⑥⑦⑧⑨"
 
 
 @dataclass(frozen=True)
@@ -122,10 +123,11 @@ def _fields(text: str) -> dict[str, str]:
     return out
 
 
-def ops_reference(ops_contexts: list[dict], user_text: str) -> tuple[list[str], list[dict]]:
+def ops_reference(ops_contexts: list[dict], user_text: str, symptom_cues=()) -> tuple[list[str], list[dict]]:
     """이미 조회한 운영 데이터를 되묻는 답의 참고로 만든다: 사용자가 말한 서비스의 현재 상태, 비슷한 과거 장애(증상과 원인).
 
     과거 장애의 조치는 쓰지 않는다: 지금 원인이 정해지기 전에 과거에 한 조치를 따라 고르게 하지 않기 위해서다.
+    symptom_cues가 있으면 그 증상이 나온 과거 장애만 고른다(검색이 느슨하게 돌려준 관련 없는 장애를 빼기 위해서다).
     """
     lines: list[str] = []
     used: list[dict] = []
@@ -137,7 +139,12 @@ def ops_reference(ops_contexts: list[dict], user_text: str) -> tuple[list[str], 
                 bits = [f"{k} {f[k]}" for k in ("상태", "에러율(%)", "비고") if f.get(k)]
                 lines.append(f"- 현재 상태 · {service}: " + ", ".join(bits))
                 used.append(c)
-    incidents = [c for c in ops_contexts if c["doc_id"].startswith("incidents/")][:3]
+    def matches(c: dict) -> bool:  # 서비스 이름 줄이 아니라 증상·원인 줄에서 찾는다(api-gateway 장애는 모두 'gateway'가 있다)
+        f = _fields(c["text"])
+        body = f"{f.get('증상', '')} {f.get('원인', '')}".lower()
+        return not symptom_cues or any(cue in body for cue in symptom_cues)
+
+    incidents = [c for c in ops_contexts if c["doc_id"].startswith("incidents/") and matches(c)][:3]
     for c in incidents:
         f = _fields(c["text"])
         what = " / ".join(f"{k} {f[k]}" for k in ("증상", "원인") if f.get(k))
@@ -147,7 +154,7 @@ def ops_reference(ops_contexts: list[dict], user_text: str) -> tuple[list[str], 
 
 
 def build_clarification(decision: Decision, docs, user_names_service: bool, ops_contexts=None,
-                        user_text: str = "") -> tuple[str, list[dict], list[str]]:
+                        user_text: str = "", symptom_cues=()) -> tuple[str, list[dict], list[str]]:
     """구분 조건을 되묻는 답, 근거(contexts), 인용한 doc_id를 만든다. 런북의 조치 절차는 쓰지 않는다."""
     lines = ["증상은 같지만 원인에 따라 조치가 다른 런북이 있어, 지금 말씀하신 내용만으로는 하나를 고를 수 없습니다. "
              "어느 쪽인지 먼저 확인해 주세요. 조치 절차는 원인이 정해진 뒤에 안내합니다.", "", "**어느 경우인가요?**"]
@@ -157,18 +164,18 @@ def build_clarification(decision: Decision, docs, user_names_service: bool, ops_
         symptoms = _section(text, "증상")
         checks = _section(text, "진단 절차")
         head = _title(text) or rid
-        lines.append(f"{n}. **{head}**")
+        lines.append(f"**{CIRCLED[n - 1]} {head}**")
         quoted = []
         if symptoms:
-            lines.append("   - 이런 경우: " + " ".join(symptoms))
+            lines.append("- 이런 경우: " + " ".join(symptoms))
             quoted += symptoms
         if checks:
-            lines.append(f"   - 먼저 확인: {checks[0]}")
+            lines.append(f"- 먼저 확인: {checks[0]}")
             quoted.append(checks[0])
         for c in _contexts_for(chunks, quoted):
             if all(x["doc_id"] != c["doc_id"] for x in contexts):
                 contexts.append(c)
-    ref, used = ops_reference(ops_contexts or [], user_text)
+    ref, used = ops_reference(ops_contexts or [], user_text, symptom_cues)
     if ref:
         lines += ["", "**참고: 지금까지 확인한 운영 데이터**", *ref]
         contexts += used

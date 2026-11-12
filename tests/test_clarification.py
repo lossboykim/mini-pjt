@@ -330,3 +330,25 @@ def test_clarification_does_not_repeat_ops_calls_the_model_already_made(client):
     r = ask(client, "api-gateway 502가 나. 상태 확인하고 과거 사례도 알려줘")
     calls = [t["input"]["tool"] for t in r["trace"] if t["step"] == "tool_call"]
     assert calls.count("search_incidents") == 1 and calls.count("get_service_status") == 1
+
+
+def test_clarification_leaves_out_past_incidents_that_do_not_match_the_symptom():
+    def incident(inc_id, date, symptom, cause, action):
+        text = "\n".join([f"[장애 이력] {inc_id}", "서비스: api-gateway", f"발생일: {date}", f"증상: {symptom}",
+                          f"원인: {cause}", f"조치: {action}"])
+        return {"doc_id": f"incidents/{inc_id}", "text": text}
+
+    ops = [incident("INC-1003", "2026-09-02", "502 에러 간헐 발생", "업스트림 readiness", "재배포"),
+           incident("INC-1012", "2026-10-27", "TLS 인증서 만료 경고", "갱신 실패", "갱신")]
+    lines, used = dis.ops_reference(ops, "api-gateway 502가 나", ("502", "504", "게이트웨이", "gateway"))
+    assert any("INC-1003" in ln for ln in lines) and not any("INC-1012" in ln for ln in lines)
+    assert [c["doc_id"] for c in used] == ["incidents/INC-1003"]
+    assert all("조치" not in ln for ln in lines)
+    all_lines, _ = dis.ops_reference(ops, "x")  # 증상 단서가 없으면 거르지 않는다
+    assert len(all_lines) == 2
+
+
+def test_clarification_options_are_not_markdown_numbers(client):
+    r = ask(client, "api-gateway 502가 간헐적으로 나")
+    assert "**① " in r["answer"] and "**② " in r["answer"]  # 화면 마크다운이 중첩 목록에서 번호를 다시 시작하므로 원문자를 쓴다
+    assert not re.search(r"^\d+\. ", r["answer"], flags=re.M)
