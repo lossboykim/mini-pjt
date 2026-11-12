@@ -38,6 +38,13 @@ POST /query ─▶ guard ─▶ supervisor ─▶ 전문 에이전트(ReAct) ◀
 - 모델: Bedrock `us.anthropic.claude-sonnet-4-5-20250929-v1:0`, 감독자의 경로 선택만 `us.anthropic.claude-haiku-4-5-20251001-v1:0`, 임베딩 `amazon.titan-embed-text-v2:0`(us-east-1).
 - 일일 한도 대체(`src/llm.py`): 처음 모델을 부르기 전에 설정 모델에 출력 1토큰짜리 요청을 보내 한도를 확인하고, 일일 한도를 다 썼으면 후보 목록의 다음 모델로 넘어간다. 실행 중 호출이 `Too many tokens per day`로 실패해도 다음 후보로 바꿔 같은 요청을 다시 보낸다. 후보 순서는 같은 모델의 다른 리전·추론 프로필(Sonnet 4.5: us-east-1 → us-west-2 → global) → Sonnet 4.6 → Haiku 4.5 → Nova Pro다. 에이전트·심사·RAGAS가 모두 따르고, 평가 결과 파일의 `llm` 항목에 실제로 쓴 모델과 대체 기록이 남는다. 임베딩(Titan)은 대체하지 않는다.
 
+- **되묻기 게이트**(`src/disambiguation.py`, `data/runbook_groups.json`): 비슷한 문서가 검색됐다는 것만으로 조치를 고르지 않는다.
+  - 증상은 같고 조치가 다른 런북 묶음(RB-03/04 게이트웨이 502, RB-05/06 DB 타임아웃, RB-07/08 Pod Pending)이 검색됐을 때, 질문과 사용자가 말한 서비스의 현재 상태에 어느 원인인지 가리키는 단서(서비스명이나 오류 조건)가 없으면 한쪽을 고르지 않고 구분 조건을 되묻는다. 단서가 한쪽에만 있으면 그 런북만 안내하고 같은 증상의 다른 런북은 근거에서 뺀다. 두 원인을 모두 말했으면(예: "풀 고갈인지 페일오버인지 구분해줘") 되묻지 않고 원인별로 모두 안내하며, 검색에서 빠진 런북은 원문에서 채운다.
+  - 되묻는 답은 코드가 런북 원문(증상, 진단 절차 첫 단계)만 옮겨 만든다. 어느 쪽의 조치 절차도 쓰지 않고, 모델이 없는 절차를 지어낼 수 없다. 이미 확인한 현재 상태와 비슷한 과거 장애(증상·원인만, 과거에 한 조치는 제외)를 참고로 붙이며, 모델이 조회를 건너뛰었으면 코드가 직접 조회한다.
+  - 조치(재시작) 요청인데 대상 서비스가 사용자 말에 없거나 등록되지 않은 서비스면, 서비스를 짐작해 승인 카드를 띄우지 않고 먼저 되묻는다.
+  - 되묻기에 대한 짧은 답(구분 단서나 서비스 이름)은 앞 질문과 합쳐 한 질문으로 처리하고, 모델이 검색을 건너뛰면 코드가 합친 질문으로 검색한다. 새 질문은 합치지 않는다.
+  - 되묻는 응답은 `status`가 `completed`이고(계약의 두 값을 늘리지 않았다) trace에 `clarify` 단계가 남는다. 화면에는 "확인 필요" 배지가 뜬다.
+
 ## 4. 실행 방법
 ```
 pip install -r requirements.txt
@@ -66,6 +73,7 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
     - `/` 키로 입력창으로 이동한다.
   - 응답 스키마를 바꿔야 하는 신뢰도 등급과 가설 트리(Rootly, Datadog Bits AI SRE)는 고정 평가에 영향을 줄 수 있어 넣지 않았다.
 - 테스트(Bedrock 호출 없음, 가짜 모델): `python -m pytest tests -q`
+- 구분 평가(같은 증상에 조건만 바꾼 질문 12건, 규칙 판정): `python evaluation/run_disambiguation.py`. 평가 세트는 `evaluation/disambiguation_queries.csv`(`evaluation/make_disambiguation_queries.py`로 만든다)이고, 고정 평가 세트 16건과 별개라 고정 파일은 건드리지 않는다.
 - 평가: `python evaluation/run_eval.py --round <N>`(같은 코드를 반복 측정하면 `--run <K>`), RAGAS는 `evaluation/requirements-eval.txt`로 만든 `.venv-eval`에서 `evaluation/run_ragas.py --round <N>`
 - MCP 서버는 에이전트가 필요할 때 `python -m src.mcp_server`를 stdio로 직접 띄운다. 따로 실행할 필요는 없다.
 - Dockerfile이 있으나 **이 PC에 Docker가 없어 빌드 검증은 하지 못했다.**
@@ -116,15 +124,20 @@ curl -X POST localhost:8000/approve -H "Content-Type: application/json" -d '{"th
 ## 8. 핵심 코드 위치
 | 항목 | 위치 | 심볼 |
 |---|---|---|
-| 구조화 출력 | `src/agent.py:92` | `FinalAnswer` |
-| 인젝션 가드 정규식 | `src/agent.py:83` | `INJECTION_RE` |
-| 운영 데이터 근거(contexts) | `src/agent.py:163` | `ops_contexts` |
-| 인용 근거 선별 | `src/agent.py:186` | `pick_contexts` |
-| 에이전트 클래스 | `src/agent.py:270` | `RunbookAgent` |
-| 승인 대기(HITL) | `src/agent.py:453` | `_approval` |
-| 최종 응답 | `src/agent.py:485` | `_final` |
-| 질의 진입 | `src/agent.py:550` | `query` |
-| 승인 재개 | `src/agent.py:559` | `approve` |
+| 구조화 출력 | `src/agent.py:93` | `FinalAnswer` |
+| 인젝션 가드 정규식 | `src/agent.py:84` | `INJECTION_RE` |
+| 운영 데이터 근거(contexts) | `src/agent.py:167` | `ops_contexts` |
+| 인용 근거 선별 | `src/agent.py:190` | `pick_contexts` |
+| 에이전트 클래스 | `src/agent.py:274` | `RunbookAgent` |
+| 승인 대기(HITL) | `src/agent.py:549` | `_approval` |
+| 최종 응답 | `src/agent.py:581` | `_final` |
+| 되묻기 게이트 결정 | `src/disambiguation.py:63` | `decide` |
+| 되묻기 답 만들기 | `src/disambiguation.py:149` | `build_clarification` |
+| 묶음 데이터 읽기 | `src/disambiguation.py:43` | `load_groups` |
+| 후속 답 재검색 보장 | `src/agent.py:355` | `_ensure_retrieval` |
+| 되묻기 전 운영 데이터 조회 | `src/agent.py:378` | `_ensure_ops_data` |
+| 질의 진입 | `src/agent.py:709` | `query` |
+| 승인 재개 | `src/agent.py:718` | `approve` |
 | 일일 한도 대체 | `src/llm.py:194` | `FailoverChat` |
 | MCP 세션 재사용 | `src/mcp_server.py:70` | `_SessionWorker` |
 | 쿼리 확장 | `src/retriever.py:143` | `expand_query` |

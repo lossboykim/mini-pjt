@@ -1,0 +1,44 @@
+{
+  "_설명": "증상은 같지만 원인과 조치가 다른 런북 묶음. symptom_cues: 이 묶음의 공통 증상을 가리키는 말(질문에 있어야 묶음이 쓰인다). members.<런북>.cues: 그 런북의 원인을 가리키는 단서(서비스명이나 오류 조건). 질문과 확인된 서비스 상태에 단서가 하나도 없으면 조치를 고르지 않고 되묻는다. 단서는 소문자로 비교한다.",
+  "groups": [
+    {
+      "id": "gateway-502",
+      "symptom": "api-gateway 502/504 응답 지연",
+      "symptom_cues": ["502", "504", "게이트웨이", "gateway"],
+      "members": {
+        "RB-03": {
+          "cues": ["readiness", "not ready", "notready", "ready 아", "ready가 아", "ready 파드 수", "ready 파드가", "엔드포인트가 비", "엔드포인트에 ready", "일부 파드", "파드가 부족", "파드 수가 부족"]
+        },
+        "RB-04": {
+          "cues": ["timeout", "타임아웃", "업로드", "리포트", "긴 요청", "오래 걸리는 요청", "keepalive", "proxy_read", "모두 ready", "업스트림은 정상", "업스트림 파드는 모두", "업스트림은 모두 정상"]
+        }
+      }
+    },
+    {
+      "id": "db-timeout",
+      "symptom": "DB 연결 타임아웃",
+      "symptom_cues": ["타임아웃", "timeout", "연결 오류", "connection refused"],
+      "members": {
+        "RB-05": {
+          "cues": ["커넥션 풀", "connection pool", "풀 고갈", "pool", "idle in transaction", "max pool", "풀 최대", "활성 커넥션"]
+        },
+        "RB-06": {
+          "cues": ["페일오버", "failover", "프라이머리", "primary", "connection refused", "읽기 전용", "여러 서비스"]
+        }
+      }
+    },
+    {
+      "id": "pod-pending",
+      "symptom": "Pod Pending 스케줄링 실패",
+      "symptom_cues": ["pending", "스케줄링 실패"],
+      "members": {
+        "RB-07": {
+          "cues": ["insufficient", "노드 메모리", "노드 cpu", "노드 리소스", "노드 용량", "리소스 부족", "cpu 부족", "메모리 부족"]
+        },
+        "RB-08": {
+          "cues": ["pvc", "unbound", "볼륨", "storageclass", "스토리지클래스", "persistentvolume", "바인딩"]
+        }
+      }
+    }
+  ]
+}
