@@ -37,7 +37,8 @@ WORKERS: dict[str, WorkerSpec] = {
         name="runbook_agent",
         role="런북 검색 담당. 증상에 맞는 런북의 진단 절차와 조치 절차를 찾는다.",
         tools=("retrieve_runbook",),
-        prompt=("너는 런북 검색 담당이다. retrieve_runbook으로 증상에 맞는 런북을 찾는다. 찾은 런북의 절차는 "
+        prompt=("너는 런북 검색 담당이다. retrieve_runbook으로 증상에 맞는 런북을 찾는다. 감독자 지시에 운영 데이터로 "
+                "확인된 증상이 적혀 있으면 사용자가 처음 말한 증상이 아니라 그 증상으로 검색한다. 찾은 런북의 절차는 "
                 "최종 답 단계가 도구 결과로 안내하므로 옮겨 적지 않는다. 런북에 없으면 없다고 보고한다. "
                 "운영 데이터 조회와 조치 실행은 다른 담당의 일이다."),
     ),
@@ -92,7 +93,10 @@ SUPERVISOR_PROMPT = (
     "찾아보게 하고, 런북을 찾지 못했더라도 조치 요청은 action_agent에게 넘겨 사람의 승인을 받게 한다.\n"
     "4. 필요한 정보가 모였거나, 운영 장애와 무관한 질의이거나, 조치 요청이 아닌데 런북에서 근거를 찾지 못했으면 "
     "FINISH를 고른다.\n"
-    "5. 이미 일한 에이전트에게는 다시 맡기지 않는다. 런북을 더 찾아야 하면 runbook_agent가 자기 차례에 여러 번 검색한다."
+    "5. 이미 일한 에이전트에게는 다시 맡기지 않는다. 런북을 더 찾아야 하면 runbook_agent가 자기 차례에 여러 번 검색한다.\n"
+    "6. 예외: ops_agent가 확인한 현재 상태가 사용자가 말한 증상과 다르면(예: CrashLoopBackOff라고 했지만 파드는 모두 "
+    "준비됐고 에러율만 높다) runbook_agent에게 한 번 더 맡겨 확인된 증상으로 런북을 찾게 한다. reason에 확인된 증상을 "
+    "적는다. 증상이 같거나 런북을 이미 확인된 증상으로 찾았으면 다시 맡기지 않는다."
 )
 
 
@@ -125,10 +129,22 @@ def build_request(messages: list, visited: list[str]) -> list:
     return [SystemMessage(SUPERVISOR_PROMPT), HumanMessage(body)]
 
 
+def may_research(visited: list[str]) -> bool:
+    """런북 재검색을 허용하는지: 런북 담당이 한 번만 일했고 그 뒤에 운영 데이터 담당이 일했을 때만.
+
+    운영 데이터가 사용자가 말한 증상과 다른 실제 상태를 보여 주면(예: CrashLoopBackOff라 했는데 배포 직후 에러율 상승)
+    처음 검색한 런북은 맞지 않는다. 재검색이 없으면 최종 답이 다른 증상의 런북 절차를 빌려 쓰게 된다.
+    """
+    if visited.count("runbook_agent") != 1:
+        return False
+    return "ops_agent" in visited[visited.index("runbook_agent") + 1:]
+
+
 def choose_next(llm, messages: list, visited: list[str], invoke=None) -> Route:
     """다음에 일할 에이전트를 고른다. 횟수 제한과 재지명 금지는 모델 판단과 무관하게 코드로 지킨다.
 
     한 질의에서 같은 에이전트는 한 번만 일한다. 다시 맡기면 모델 호출이 네댓 번 늘어 응답이 20초 이상 느려진다.
+    예외는 하나: 운영 데이터 확인 뒤 런북 담당에게 한 번 더 맡기는 재검색(may_research).
 
     invoke: 모델 호출을 감싸는 함수(재시도 미들웨어용). 없으면 그대로 호출한다.
     """
@@ -139,7 +155,7 @@ def choose_next(llm, messages: list, visited: list[str], invoke=None) -> Route:
     request = build_request(messages, visited)
     runnable = llm.with_structured_output(Route)
     route = invoke(request, runnable.invoke) if invoke else runnable.invoke(request)
-    if route.next != FINISH and route.next in visited:
+    if route.next != FINISH and route.next in visited and not (route.next == "runbook_agent" and may_research(visited)):
         return Route(next=FINISH, reason=f"{route.next}는 이미 일했으므로 다시 맡기지 않는다")
     if route.next == "action_agent" and not ACTION_REQUEST_RE.search(user_question(messages)):
         return Route(next=FINISH, reason="사용자가 조치를 요청하지 않았으므로 조치 담당에게 넘기지 않는다")

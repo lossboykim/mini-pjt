@@ -3,7 +3,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableLambda
 
 from src.supervisor import (FINISH, MAX_HANDOFFS, WORKERS, Route, build_request, choose_next, digest,
-                            worker_system_prompt, worker_tools)
+                            may_research, worker_system_prompt, worker_tools)
 
 
 class StubRouter:
@@ -58,13 +58,30 @@ def test_choose_next_never_reassigns_the_worker_that_just_ran():
 
 
 def test_choose_next_never_reassigns_a_worker_that_already_ran():
-    # 런북 -> 운영 데이터 다음에 모델이 런북 담당을 다시 골라도 끝낸다(한 질의에서 담당마다 한 번만).
-    route = choose_next(StubRouter("runbook_agent"), [HumanMessage("q")], ["runbook_agent", "ops_agent"])
-    assert route.next == FINISH
+    # 한 질의에서 담당마다 한 번만. 예외(런북 재검색)는 아래 테스트에서 본다.
+    assert choose_next(StubRouter("ops_agent"), [HumanMessage("q")], ["runbook_agent", "ops_agent"]).next == FINISH
+    assert choose_next(StubRouter("runbook_agent"), [HumanMessage("q")], ["ops_agent", "runbook_agent"]).next == FINISH
     llm = StubRouter("action_agent")
     assert choose_next(llm, [HumanMessage("payment-api 재시작해줘")], ["runbook_agent", "ops_agent"]).next == "action_agent"
     every = StubRouter("runbook_agent")
     assert choose_next(every, [HumanMessage("q")], list(WORKERS)).next == FINISH and every.requests == []
+
+
+def test_runbook_agent_may_search_again_once_after_ops_data():
+    # 운영 데이터가 말한 증상과 다른 상태를 보여 주면(CrashLoopBackOff라 했는데 배포 직후 에러율 상승) 런북을 다시 찾는다.
+    again = choose_next(StubRouter("runbook_agent"), [HumanMessage("q")], ["runbook_agent", "ops_agent"])
+    assert again.next == "runbook_agent"
+    # 재검색은 한 번뿐이다: 런북 담당이 두 번 일했으면 모델이 또 골라도 끝낸다(호출 수 폭증 방지).
+    twice = StubRouter("runbook_agent")
+    assert choose_next(twice, [HumanMessage("q")], ["runbook_agent", "ops_agent", "runbook_agent"]).next == FINISH
+    assert may_research(["runbook_agent", "ops_agent"]) and not may_research(["ops_agent", "runbook_agent"])
+    assert not may_research(["runbook_agent"]) and not may_research(["runbook_agent", "ops_agent", "runbook_agent"])
+
+
+def test_supervisor_prompt_explains_the_research_exception():
+    from src.supervisor import SUPERVISOR_PROMPT
+    assert "확인된 증상" in SUPERVISOR_PROMPT and "한 번 더" in SUPERVISOR_PROMPT
+    assert "확인된 증상" in WORKERS["runbook_agent"].prompt
 
 
 def test_action_agent_only_when_the_user_asked_for_an_action():
