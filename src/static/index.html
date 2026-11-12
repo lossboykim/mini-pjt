@@ -103,6 +103,7 @@
   .empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
 
   /* ---- 조사 진행(실시간 단계), 근거 칩, 승인 확인, 이력·모델 표시 ---- */
+  .badge.clarify { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
   .badge.no_evidence, .badge.blocked { color: var(--bad); background: color-mix(in srgb, var(--bad) 11%, transparent); }
   .meta .path { font-size: 12px; color: var(--muted); }
   .meta .path b { color: var(--text); font-weight: 600; }
@@ -488,6 +489,8 @@ function stepLabel(t) {
     case "approval_wait": return [`사람 승인 대기: ${TOOL_LABEL[i.tool] || i.tool}`, (i.args || {}).service || "", "alert"];
     case "final_response": return ["최종 답 작성", ""];
     case "no_evidence": return ["근거 없음", "절차를 만들지 않음", "alert"];
+    case "clarify": return i && i.reason === "missing_target" ? ["되묻기: 대상 서비스", "승인 요청 없이 어느 서비스인지 물음", "alert"]
+      : ["되묻기: 구분 조건", "증상은 같고 조치가 다른 런북이라 한쪽을 고르지 않음", "alert"];
     default: return null;   // agent, mcp_call, tool:<이름>, middleware
   }
 }
@@ -562,6 +565,7 @@ function renderResponse(r, info = {}) {
   const steps = trace.map((t) => t.step);
   let kind = r.status, label = STATUS_LABEL[r.status] || r.status;
   if (steps.includes("no_evidence")) { kind = "no_evidence"; label = "근거 없음"; }
+  if (steps.includes("clarify")) { kind = "clarify"; label = "확인 필요"; }
   if (trace.some((t) => t.step === "guard" && String(t.output).startsWith("blocked"))) { kind = "blocked"; label = "요청 거부"; }
   const path = trace.filter((t) => t.step === "supervisor" && t.output && t.output.next && t.output.next !== "FINISH")
     .map((t) => WORKER_LABEL[t.output.next] || t.output.next);
@@ -673,6 +677,7 @@ function recordResponse(r, kind, label, question) {
   if (r.status === "awaiting_approval") logEvent("approval", `승인 요청: ${pendingText(r.trace) || "조치"}`);
   else if (kind === "blocked") logEvent("answer", "요청 거부 — 지시 무시·프롬프트 노출 요구");
   else if (kind === "no_evidence") logEvent("answer", "근거 없음 — 런북에 없는 절차라 만들지 않음");
+  else if (kind === "clarify") logEvent("answer", "되묻기 — 구분 조건이나 대상 서비스를 확인한 뒤 안내");
   else logEvent("answer", plainLine(r.answer));
   for (const t of r.trace || [])
     if (t.step === "tool_call" && t.input && t.input.tool === "restart_service" && t.output && t.output.executed)
