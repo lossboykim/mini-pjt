@@ -1,5 +1,5 @@
 {
-  "measured_commit": "2ece47c8874e0f9b0fb807c27b6ea9f750aaee5f",
+  "measured_commit": "93003e2bef2f53106256d46deb1dd7c58eb9db59",
   "worktree_dirty_paths": [],
   "llm": {
     "router": {
@@ -9,13 +9,13 @@
       "configured": "us.anthropic.claude-haiku-4-5-20251001-v1:0@us-east-1",
       "events": [
         {
-          "time": "2026-11-12T16:31:43+0900",
+          "time": "2026-11-12T17:27:29+0900",
           "role": "router",
           "event": "probe:ok",
           "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0@us-east-1"
         },
         {
-          "time": "2026-11-12T16:31:43+0900",
+          "time": "2026-11-12T17:27:29+0900",
           "role": "router",
           "event": "selected",
           "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0@us-east-1"
@@ -24,21 +24,40 @@
     },
     "main": {
       "role": "main",
-      "current": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-east-1",
+      "current": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-west-2",
       "checked": true,
       "configured": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-east-1",
       "events": [
         {
-          "time": "2026-11-12T16:31:47+0900",
+          "time": "2026-11-12T17:27:35+0900",
           "role": "main",
           "event": "probe:ok",
           "model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-east-1"
         },
         {
-          "time": "2026-11-12T16:31:47+0900",
+          "time": "2026-11-12T17:27:35+0900",
           "role": "main",
           "event": "selected",
           "model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-east-1"
+        },
+        {
+          "time": "2026-11-12T17:29:08+0900",
+          "role": "main",
+          "event": "daily_quota_during_call",
+          "model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-east-1",
+          "detail": "An error occurred (ThrottlingException) when calling the Converse operation (reached max retries: 4): Too many tokens per day, please wait before trying again."
+        },
+        {
+          "time": "2026-11-12T17:29:10+0900",
+          "role": "main",
+          "event": "probe:ok",
+          "model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-west-2"
+        },
+        {
+          "time": "2026-11-12T17:29:10+0900",
+          "role": "main",
+          "event": "selected",
+          "model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0@us-west-2"
         }
       ]
     }
@@ -78,25 +97,9 @@
             "tool:get_service_status",
             "mcp_call",
             "tool_call",
-            "tool:get_service_status",
-            "agent",
-            "supervisor",
-            "agent",
-            "query_expansion",
-            "hybrid_search",
-            "rerank",
-            "tool_call",
-            "tool:retrieve_runbook",
-            "query_expansion",
-            "hybrid_search",
-            "rerank",
-            "tool_call",
-            "tool:retrieve_runbook",
-            "agent",
-            "supervisor",
-            "mcp_call",
-            "tool_call",
             "tool:search_incidents",
+            "agent",
+            "supervisor",
             "clarify",
             "final_response"
           ],
@@ -104,7 +107,7 @@
             "RB-03",
             "RB-04"
           ],
-          "answer": "증상은 같지만 원인에 따라 조치가 다른 런북이 있어, 지금 말씀하신 내용만으로는 하나를 고를 수 없습니다. 어느 쪽인지 먼저 확인해 주세요. 조치 절차는 원인이 정해진 뒤에 안내합니다.\n\n**어느 경우인가요?**\n**① RB-03 api-gateway 502 간헐 발생: 업스트림 파드 readiness 실패**\n- 이런 경우: api-gateway 응답이 느리고 502 Bad Gateway가 간헐적으로 난다. 업스트림 Deployment의 Ready 파드 수가 요청 파드 수보다 적다.\n- 먼저 확인: `kubectl get endpoints <upstream-service>`로 엔드포인트에 Ready 파드가 몇 개 있는지 본다.\n**② RB-04 api-gateway 502/504 응답 지연: 게이트웨이 타임아웃·커넥션 설정 문제**\n- 이런 경우: api-gateway 응답이 느리고 502 또는 504가 난다. 업스트림 파드는 모두 Ready다. 긴 요청(업로드, 리포트)에서만 실패가 집중된다.\n- 먼저 확인: `kubectl get endpoints <upstream-service>`로 업스트림 파드가 모두 Ready인지 확인한다. 아니면 RB-03을 본다.\n\n**참고: 지금까지 확인한 운영 데이터**\n- 현재 상태 · api-gateway: 상태 degraded, 에러율(%) 3.1, 비고 502 간헐 발생, 지연 증가\n- 비슷한 과거 장애 · INC-1003(2026-09-02): 증상 502 에러 간헐 발생, 응답 지연 / 원인 업스트림 payment-api readiness probe 지연\n- 비슷한 과거 장애 · INC-1004(2026-09-11): 증상 504 타임아웃, 긴 요청에서만 실패 / 원인 proxy_read_timeout 30초가 리포트 생성 시간보다 짧음\n\n해당하는 쪽의 확인 결과(또는 화면에 나온 오류 메시지)를 알려 주시면 그 런북의 절차만 안내하겠습니다."
+          "answer": "증상은 같지만 원인에 따라 조치가 다른 런북이 있어, 지금 말씀하신 내용만으로는 하나를 고를 수 없습니다. 어느 쪽인지 먼저 확인해 주세요. 조치 절차는 원인이 정해진 뒤에 안내합니다. 이 증상은 과거에도 있었고(INC-1003, INC-1004), 그때 원인은 ①, ② 경우가 모두 있었습니다.\n\n**어느 경우인가요?**\n**① RB-03 api-gateway 502 간헐 발생: 업스트림 파드 readiness 실패**\n- 이런 경우: api-gateway 응답이 느리고 502 Bad Gateway가 간헐적으로 난다. 업스트림 Deployment의 Ready 파드 수가 요청 파드 수보다 적다.\n- 먼저 확인: `kubectl get endpoints <upstream-service>`로 엔드포인트에 Ready 파드가 몇 개 있는지 본다.\n**② RB-04 api-gateway 502/504 응답 지연: 게이트웨이 타임아웃·커넥션 설정 문제**\n- 이런 경우: api-gateway 응답이 느리고 502 또는 504가 난다. 업스트림 파드는 모두 Ready다. 긴 요청(업로드, 리포트)에서만 실패가 집중된다.\n- 먼저 확인: `kubectl get endpoints <upstream-service>`로 업스트림 파드가 모두 Ready인지 확인한다. 아니면 RB-03을 본다.\n\n**비슷한 과거 장애와 현재 상태**\n- 현재 상태 · api-gateway: 상태 degraded, 에러율(%) 3.1, 비고 502 간헐 발생, 지연 증가\n- 비슷한 과거 장애 · INC-1003(2026-09-02): 증상 502 에러 간헐 발생, 응답 지연 / 원인 업스트림 payment-api readiness probe 지연 → 과거에는 ① RB-03 쪽이었다\n- 비슷한 과거 장애 · INC-1004(2026-09-11): 증상 504 타임아웃, 긴 요청에서만 실패 / 원인 proxy_read_timeout 30초가 리포트 생성 시간보다 짧음 → 과거에는 ② RB-04 쪽이었다\n\n해당하는 쪽의 확인 결과(또는 화면에 나온 오류 메시지)를 알려 주시면 그 런북의 절차만 안내하겠습니다."
         }
       ]
     },
@@ -145,7 +148,7 @@
           "runbooks": [
             "RB-03"
           ],
-          "answer": "## 📊 현재 상태 확인\n\n**api-gateway 서비스**: degraded 상태\n- 파드: 3/3 Ready\n- 에러율: 3.1%\n- p95 지연: 2300ms\n- 증상: 502 간헐 발생, 지연 증가\n\n**과거 유사 사례**: INC-1003 (2026-09-02)에서 동일 증상(502 간헐, 응답 지연)이 업스트림 payment-api readiness probe 지연으로 발생했고 RB-03 절차로 해결되었습니다.\n\n---\n\n## 📋 RB-03 진단 절차\n\n1. **`kubectl get endpoints <upstream-service>`**로 엔드포인트에 Ready 파드가 몇 개 있는지 확인\n2. **`kubectl describe pod <upstream-pod>`**의 Events에서 Readiness probe failed 메시지 확인\n3. 업스트림 파드 로그에서 기동 지연이나 헬스체크 엔드포인트 오류 확인\n\n---\n\n## 🔧 RB-03 조치 절차\n\n1. **readiness probe의 `initialDelaySeconds`와 `timeoutSeconds`가 앱 기동 시간에 맞는지 점검**하고 조정을 요청\n2. **비정상 파드가 한두 개이면 해당 파드만 교체**되도록 담당자에게 요청 (서비스 전체 재시작은 하지 않음)\n3. 조치 후 **`kubectl get endpoints`에서 Ready 파드 수가 정상으로 돌아왔는지 확인**\n\n---\n\n⚠️ **주의**: 이 런북은 업스트림 파드 상태가 원인일 때만 사용합니다. 게이트웨이 타임아웃 설정 문제는 RB-04를 참고하세요."
+          "answer": "**api-gateway 502 간헐 발생 (업스트림 파드 readiness probe 실패) 상황입니다.**\n\n---\n\n## 📊 현재 상태\n- **api-gateway**: degraded 상태\n- **파드**: 3/3 Ready\n- **에러율**: 3.1%\n- **p95 지연**: 2300ms\n- **증상**: 502 간헐 발생, 지연 증가\n\n## 📜 과거 사례\n**INC-1003** (2026-09-02): 동일 증상으로 업스트림 payment-api readiness probe 지연이 원인이었으며, probe initialDelaySeconds 상향으로 해결됨 (RB-03 절차 적용)\n\n---\n\n## 🔍 진단 절차 (RB-03)\n\n1. **`kubectl get endpoints <upstream-service>`**로 엔드포인트에 Ready 파드가 몇 개 있는지 확인\n2. **`kubectl describe pod <upstream-pod>`**의 Events에서 Readiness probe failed 메시지 확인\n3. 업스트림 파드 로그에서 기동 지연이나 헬스체크 엔드포인트 오류 확인\n\n---\n\n## 🔧 조치 절차 (RB-03)\n\n1. **readiness probe의 `initialDelaySeconds`와 `timeoutSeconds`가 앱 기동 시간에 맞는지 점검**하고 조정을 요청\n2. **비정상 파드가 한두 개이면 해당 파드만 교체**되도록 담당자에게 요청 (서비스 전체 재시작은 하지 않음)\n3. 조치 후 **`kubectl get endpoints`에서 Ready 파드 수가 정상으로 돌아왔는지 확인**\n\n---\n\n⚠️ **주의**: 이 런북은 업스트림 파드 상태가 원인일 때만 사용합니다."
         }
       ]
     },
@@ -175,10 +178,10 @@
             "agent",
             "mcp_call",
             "tool_call",
-            "tool:get_service_status",
+            "tool:search_incidents",
             "mcp_call",
             "tool_call",
-            "tool:search_incidents",
+            "tool:get_service_status",
             "agent",
             "supervisor",
             "final_response"
@@ -186,7 +189,7 @@
           "runbooks": [
             "RB-04"
           ],
-          "answer": "**현재 상태 확인**\napi-gateway는 현재 degraded 상태이며, 에러율 3.1%, p95 지연 2,300ms입니다. 파드는 3/3 Ready 상태입니다.\n\n**과거 유사 사례**\nINC-1004(2026-09-11)에서 동일 증상(504 타임아웃, 긴 요청에서만 실패)이 발생했으며, 원인은 proxy_read_timeout 30초가 리포트 생성 시간보다 짧았던 것으로 확인되었습니다. 타임아웃을 120초로 상향 조치하여 해결했습니다.\n\n**RB-04 진단 및 조치 절차**\n\n**진단 절차:**\n1. `kubectl get endpoints <upstream-service>`로 업스트림 파드가 모두 Ready인지 확인 (이미 확인하신 것으로 보입니다)\n2. 게이트웨이 설정에서 `proxy_read_timeout`, `proxy_connect_timeout`, keepalive 값을 확인하세요\n3. 게이트웨이 접근 로그에서 실패 요청의 `upstream_response_time`을 확인하세요\n\n**조치 절차:**\n1. 타임아웃 값이 실제 업스트림 응답 시간보다 짧으면 ConfigMap의 값을 늘리는 변경을 요청하세요\n2. keepalive 커넥션 수 부족이면 `keepalive_requests` 증설을 요청하세요\n3. 설정 반영은 게이트웨이 설정 리로드 절차로 적용하고 오류율을 확인하세요\n\n**주의사항:**\n업스트림 파드를 건드리는 조치는 이 런북에 없습니다."
+          "answer": "**진단 결과**\n\n현재 api-gateway는 degraded 상태이며, 파드 3/3 Ready, 에러율 3.1%, p95 지연 2300ms로 502가 간헐 발생 중입니다.\n\n업로드 같은 긴 요청에서만 502/504가 발생하고 업스트림 파드가 모두 Ready인 증상은 **RB-04: api-gateway 502/504 응답 지연 - 게이트웨이 타임아웃·커넥션 설정 문제**에 해당합니다.\n\n**과거 유사 사례**\nINC-1004(2026-09-11)에서 동일 증상(504 타임아웃, 긴 요청에서만 실패)이 발생했으며, 원인은 proxy_read_timeout 30초가 리포트 생성 시간보다 짧았던 것으로, 타임아웃을 120초로 상향해 해결했습니다.\n\n**진단 절차 (RB-04)**\n1. `kubectl get endpoints <upstream-service>`로 업스트림 파드가 모두 Ready인지 확인 (이미 확인 완료)\n2. 게이트웨이 설정에서 `proxy_read_timeout`, `proxy_connect_timeout`, keepalive 값을 확인\n3. 게이트웨이 접근 로그에서 실패 요청의 upstream_response_time을 확인\n\n**조치 절차 (RB-04)**\n1. 타임아웃 값이 실제 업스트림 응답 시간보다 짧으면 ConfigMap의 값을 늘리는 변경을 요청\n2. keepalive 커넥션 수 부족이면 `keepalive_requests` 증설을 요청\n3. 설정 반영은 게이트웨이 설정 리로드 절차로 적용하고 오류율을 확인\n\n과거 사례를 참고하면 proxy_read_timeout 값을 확인하고 필요시 상향 조정하는 것이 해결 방법입니다."
         }
       ]
     },
@@ -217,6 +220,9 @@
             "mcp_call",
             "tool_call",
             "tool:get_service_status",
+            "mcp_call",
+            "tool_call",
+            "tool:search_incidents",
             "agent",
             "supervisor",
             "agent",
@@ -225,11 +231,13 @@
             "rerank",
             "tool_call",
             "tool:retrieve_runbook",
+            "query_expansion",
+            "hybrid_search",
+            "rerank",
+            "tool_call",
+            "tool:retrieve_runbook",
             "agent",
             "supervisor",
-            "mcp_call",
-            "tool_call",
-            "tool:search_incidents",
             "clarify",
             "final_response"
           ],
@@ -237,7 +245,7 @@
             "RB-05",
             "RB-06"
           ],
-          "answer": "증상은 같지만 원인에 따라 조치가 다른 런북이 있어, 지금 말씀하신 내용만으로는 하나를 고를 수 없습니다. 어느 쪽인지 먼저 확인해 주세요. 조치 절차는 원인이 정해진 뒤에 안내합니다.\n\n**어느 경우인가요?**\n**① RB-05 DB 연결 타임아웃: 커넥션 풀 고갈**\n- 이런 경우: 앱 로그에 `timeout waiting for connection from pool`이 반복된다. DB 서버 자체는 정상이고 현재 연결 수가 풀 최대값에 붙어 있다.\n- 먼저 확인: 앱 메트릭에서 활성 커넥션 수가 풀 최대값(max pool size)과 같은지 확인한다.\n**② RB-06 DB 연결 타임아웃: DB 페일오버 진행 중**\n- 이런 경우: 여러 서비스에서 동시에 DB 연결 타임아웃과 `connection refused`가 난다. DB 프라이머리가 교체되는 중이거나 읽기 전용 상태 알림이 함께 온다.\n- 먼저 확인: DB 클러스터 상태에서 현재 프라이머리와 페일오버 시작 시각을 확인한다.\n\n**참고: 지금까지 확인한 운영 데이터**\n- 비슷한 과거 장애 · INC-1005(2026-09-17): 증상 DB 연결 타임아웃, 커넥션 풀 고갈 / 원인 트랜잭션 미종료 코드로 커넥션 반환 안 됨\n- 비슷한 과거 장애 · INC-1007(2026-10-02): 증상 DB 연결 타임아웃, 전 서비스 동시 발생 / 원인 DB 프라이머리 페일오버\n\n해당하는 쪽의 확인 결과(또는 화면에 나온 오류 메시지)를 알려 주시면 그 런북의 절차만 안내하겠습니다.\n대상 서비스 이름도 함께 알려 주세요."
+          "answer": "증상은 같지만 원인에 따라 조치가 다른 런북이 있어, 지금 말씀하신 내용만으로는 하나를 고를 수 없습니다. 어느 쪽인지 먼저 확인해 주세요. 조치 절차는 원인이 정해진 뒤에 안내합니다. 이 증상은 과거에도 있었고(INC-1005, INC-1007), 그때 원인은 ①, ② 경우가 모두 있었습니다.\n\n**어느 경우인가요?**\n**① RB-05 DB 연결 타임아웃: 커넥션 풀 고갈**\n- 이런 경우: 앱 로그에 `timeout waiting for connection from pool`이 반복된다. DB 서버 자체는 정상이고 현재 연결 수가 풀 최대값에 붙어 있다.\n- 먼저 확인: 앱 메트릭에서 활성 커넥션 수가 풀 최대값(max pool size)과 같은지 확인한다.\n**② RB-06 DB 연결 타임아웃: DB 페일오버 진행 중**\n- 이런 경우: 여러 서비스에서 동시에 DB 연결 타임아웃과 `connection refused`가 난다. DB 프라이머리가 교체되는 중이거나 읽기 전용 상태 알림이 함께 온다.\n- 먼저 확인: DB 클러스터 상태에서 현재 프라이머리와 페일오버 시작 시각을 확인한다.\n\n**비슷한 과거 장애와 현재 상태**\n- 비슷한 과거 장애 · INC-1005(2026-09-17): 증상 DB 연결 타임아웃, 커넥션 풀 고갈 / 원인 트랜잭션 미종료 코드로 커넥션 반환 안 됨 → 과거에는 ① RB-05 쪽이었다\n- 비슷한 과거 장애 · INC-1007(2026-10-02): 증상 DB 연결 타임아웃, 전 서비스 동시 발생 / 원인 DB 프라이머리 페일오버 → 과거에는 ② RB-06 쪽이었다\n\n해당하는 쪽의 확인 결과(또는 화면에 나온 오류 메시지)를 알려 주시면 그 런북의 절차만 안내하겠습니다.\n대상 서비스 이름도 함께 알려 주세요."
         }
       ]
     },
@@ -268,23 +276,8 @@
             "mcp_call",
             "tool_call",
             "tool:get_service_status",
-            "mcp_call",
-            "tool_call",
-            "tool:search_incidents",
             "agent",
             "supervisor",
-            "agent",
-            "query_expansion",
-            "hybrid_search",
-            "rerank",
-            "tool_call",
-            "tool:retrieve_runbook",
-            "agent",
-            "query_expansion",
-            "hybrid_search",
-            "rerank",
-            "tool_call",
-            "tool:retrieve_runbook",
             "agent",
             "query_expansion",
             "hybrid_search",
@@ -298,7 +291,7 @@
           "runbooks": [
             "RB-05"
           ],
-          "answer": "**현재 상황 확인 결과**\n\n말씀하신 \"DB 서버는 정상\"이고 한 앱에서 반복되는 증상과 달리, 현재 **여러 서비스가 동시에 장애 상태**입니다:\n- payment-api: 에러율 8.4% (평소의 6배), pods_ready 4/4\n- api-gateway: 502 간헐 발생, 지연 2300ms\n- web-frontend: CrashLoopBackOff 파드 2개, pods_ready 1/3\n- order-worker: OOMKilled 반복, pods_ready 0/2\n\n최근 DB 페일오버 이력은 10월 2일이 마지막이며, 현재 페일오버 진행 중 징후는 없습니다.\n\n---\n\n**RB-05 DB 연결 타임아웃: 커넥션 풀 고갈 진단 절차**\n\n앱 로그에 `timeout waiting for connection from pool`이 반복되고 DB 서버 자체는 정상인 경우, 다음 절차로 진단합니다:\n\n1. **앱 메트릭에서 활성 커넥션 수가 풀 최대값(max pool size)과 같은지 확인**합니다.\n2. **DB에서 `SELECT state, count(*) FROM pg_stat_activity GROUP BY state;`로 idle in transaction이 많은지** 확인합니다.\n\n**조치 절차**\n1. idle in transaction 상태로 오래 남은 세션을 정리합니다.\n2. 앱의 풀 최대값을 한 단계 올리는 설정 변경을 요청합니다.\n3. 반환되지 않는 커넥션이 있는 코드 경로를 개발팀에 전달합니다.\n\n---\n\n**참고 과거 사례**\n- INC-1005 (2026-09-17, payment-api): 트랜잭션 미종료 코드로 커넥션 반환 안 됨 → idle 세션 정리 후 풀 크기 상향, 코드 수정으로 해결\n\n어느 서비스에서 증상이 나고 있는지 확인하신 후 위 진단 절차를 진행해 주세요."
+          "answer": "말씀하신 증상은 \"DB 서버는 정상이고 앱 로그에 timeout waiting for connection from pool이 반복\"이지만, 현재 확인된 상태는 다릅니다:\n\n**확인된 현재 상태:**\n- payment-api: degraded, 에러율 8.4% (평소의 6배)\n- order-worker: unhealthy, OOMKilled 반복 (파드 0/2)\n- api-gateway: degraded, 502 간헐 발생, 지연 증가\n- web-frontend: degraded, CrashLoopBackOff 파드 2개\n\n여러 서비스가 동시에 장애 상태이며, 이는 단일 앱의 커넥션 풀 고갈보다는 DB 페일오버나 광범위한 인프라 이슈를 시사합니다.\n\n그러나 말씀하신 조건(\"DB 서버 정상, 커넥션 풀 고갈\")에 따라 **RB-05 (DB 연결 타임아웃: 커넥션 풀 고갈)** 런북을 안내드립니다:\n\n## 진단 절차\n1. 앱 메트릭에서 활성 커넥션 수가 풀 최대값(max pool size)과 같은지 확인한다.\n2. DB에서 `SELECT state, count(*) FROM pg_stat_activity GROUP BY state;`로 idle in transaction이 많은지 본다.\n\n## 조치 절차\n1. idle in transaction 상태로 오래 남은 세션을 정리한다.\n2. 앱의 풀 최대값을 한 단계 올리는 설정 변경을 요청한다.\n3. 반환되지 않는 커넥션이 있는 코드 경로를 개발팀에 전달한다.\n\n## 주의\n- DB 서버 페일오버가 진행 중이면 이 런북이 아니라 RB-06을 본다.\n\n**권장:** 현재 여러 서비스가 동시 장애 상태이므로, DB 페일오버 진행 여부를 먼저 확인하시는 것을 권장합니다. order-worker의 OOMKilled는 별도로 RB-02 런북을 참고하세요."
         }
       ]
     },
@@ -329,6 +322,7 @@
             "mcp_call",
             "tool_call",
             "tool:get_service_status",
+            "agent",
             "mcp_call",
             "tool_call",
             "tool:search_incidents",
@@ -339,7 +333,7 @@
           "runbooks": [
             "RB-06"
           ],
-          "answer": "## 상황 확인\n\n**DB 페일오버 진행 중** 상황입니다. 여러 서비스에서 동시에 DB 연결 타임아웃과 connection refused가 발생하고 프라이머리 교체 알림이 온 증상은 **RB-06 (DB 페일오버 진행 중)** 런북에 해당합니다.\n\n### 현재 서비스 상태\n- **web-frontend**: degraded, 에러율 6.2%, 지연 480ms, CrashLoopBackOff 파드 2개\n- **api-gateway**: degraded, 에러율 3.1%, 지연 2300ms, 502 간헐 발생\n- **payment-api**: degraded, 에러율 8.4%, 지연 1250ms, 에러율 평소의 6배\n- **user-service**, **inventory-api**: healthy 상태 유지\n\n### 과거 유사 사례\nINC-1007 (2026-10-02): DB 프라이머리 페일오버로 전 서비스 동시 DB 연결 타임아웃 발생 → RB-06 절차로 페일오버 완료 대기 후 일부 앱 롤링 재시작으로 해결\n\n---\n\n## 📋 조치 절차 (RB-06)\n\n### 1. 페일오버 완료 대기\n**페일오버가 끝날 때까지(보통 2분 이내) 앱 풀 설정은 바꾸지 않고 기다립니다.**\n\n### 2. 완료 후 연결 확인 및 재시작\n완료 후에도 연결이 안 되는 앱은 DNS 캐시 갱신을 위해 **해당 앱의 롤링 재시작을 담당자에게 요청**합니다.\n\n### 3. 정상화 확인\n정상화 후 쓰기 요청의 성공률을 확인합니다.\n\n---\n\n## ⚠️ 주의사항\n- **풀 크기를 늘리는 조치는 페일오버 중에는 효과가 없고 DB 부하만 키웁니다.**\n\n## 🔍 진단 확인 사항\n- DB 클러스터 상태에서 현재 프라이머리와 페일오버 시작 시각 확인\n- 앱이 바라보는 DB 엔드포인트가 새 프라이머리로 갱신됐는지 확인\n- 복제 지연(replication lag)이 줄어드는지 확인"
+          "answer": "**현재 상황 확인**\n\n여러 서비스에서 DB 연결 장애가 발생하고 프라이머리 교체 알림이 온 상황입니다. 현재 서비스 상태:\n- web-frontend: degraded, 에러율 6.2%, p95 지연 480ms, CrashLoopBackOff 파드 2개\n- api-gateway: degraded, 에러율 3.1%, p95 지연 2300ms, 502 간헐 발생\n- payment-api: degraded, 에러율 8.4%, p95 지연 1250ms, 에러율 평소의 6배\n- order-worker: unhealthy, 파드 0/2, OOMKilled 반복\n\n과거 INC-1007에서 동일한 DB 프라이머리 페일오버 상황이 있었고 RB-06 절차로 해결했습니다.\n\n---\n\n**RB-06: DB 페일오버 진행 중 연결 타임아웃 대응**\n\n**진단 절차:**\n1. DB 클러스터 상태에서 현재 프라이머리와 페일오버 시작 시각을 확인합니다\n2. 앱이 바라보는 DB 엔드포인트가 새 프라이머리로 갱신됐는지 확인합니다\n3. 복제 지연(replication lag)이 줄어드는지 확인합니다\n\n**조치 절차:**\n1. **페일오버가 끝날 때까지(보통 2분 이내) 앱 풀 설정은 바꾸지 않고 기다립니다**\n2. 완료 후에도 연결이 안 되는 앱은 DNS 캐시 갱신을 위해 해당 앱의 롤링 재시작을 담당자에게 요청합니다\n3. 정상화 후 쓰기 요청의 성공률을 확인합니다\n\n**주의사항:**\n- 풀 크기를 늘리는 조치는 페일오버 중에는 효과가 없고 DB 부하만 키웁니다"
         }
       ]
     },
@@ -370,19 +364,11 @@
             "mcp_call",
             "tool_call",
             "tool:get_service_status",
+            "agent",
+            "supervisor",
             "mcp_call",
             "tool_call",
             "tool:search_incidents",
-            "agent",
-            "supervisor",
-            "agent",
-            "query_expansion",
-            "hybrid_search",
-            "rerank",
-            "tool_call",
-            "tool:retrieve_runbook",
-            "agent",
-            "supervisor",
             "clarify",
             "final_response"
           ],
@@ -390,7 +376,7 @@
             "RB-07",
             "RB-08"
           ],
-          "answer": "증상은 같지만 원인에 따라 조치가 다른 런북이 있어, 지금 말씀하신 내용만으로는 하나를 고를 수 없습니다. 어느 쪽인지 먼저 확인해 주세요. 조치 절차는 원인이 정해진 뒤에 안내합니다.\n\n**어느 경우인가요?**\n**① RB-07 Pod Pending: 노드 CPU·메모리 리소스 부족**\n- 이런 경우: 파드가 Pending에서 넘어가지 않는다. `kubectl describe pod`의 Events에 `0/N nodes are available: Insufficient memory`(또는 cpu)가 있다.\n- 먼저 확인: `kubectl describe pod <pod>`의 Events에서 Insufficient memory/cpu 메시지를 확인한다.\n**② RB-08 Pod Pending: PVC 바인딩 실패**\n- 이런 경우: 파드가 Pending이고 Events에 `pod has unbound immediate PersistentVolumeClaims`가 있다. 노드 리소스는 충분하다.\n- 먼저 확인: `kubectl get pvc`에서 해당 PVC의 STATUS가 Pending인지 확인한다.\n\n**참고: 지금까지 확인한 운영 데이터**\n- 비슷한 과거 장애 · INC-1008(2026-10-08): 증상 Pod Pending, Insufficient memory / 원인 requests 과다 설정\n- 비슷한 과거 장애 · INC-1009(2026-10-12): 증상 Pod Pending, PVC unbound / 원인 StorageClass 이름 오타\n\n해당하는 쪽의 확인 결과(또는 화면에 나온 오류 메시지)를 알려 주시면 그 런북의 절차만 안내하겠습니다.\n대상 서비스 이름도 함께 알려 주세요."
+          "answer": "증상은 같지만 원인에 따라 조치가 다른 런북이 있어, 지금 말씀하신 내용만으로는 하나를 고를 수 없습니다. 어느 쪽인지 먼저 확인해 주세요. 조치 절차는 원인이 정해진 뒤에 안내합니다. 이 증상은 과거에도 있었고(INC-1008, INC-1009), 그때 원인은 ①, ② 경우가 모두 있었습니다.\n\n**어느 경우인가요?**\n**① RB-07 Pod Pending: 노드 CPU·메모리 리소스 부족**\n- 이런 경우: 파드가 Pending에서 넘어가지 않는다. `kubectl describe pod`의 Events에 `0/N nodes are available: Insufficient memory`(또는 cpu)가 있다.\n- 먼저 확인: `kubectl describe pod <pod>`의 Events에서 Insufficient memory/cpu 메시지를 확인한다.\n**② RB-08 Pod Pending: PVC 바인딩 실패**\n- 이런 경우: 파드가 Pending이고 Events에 `pod has unbound immediate PersistentVolumeClaims`가 있다. 노드 리소스는 충분하다.\n- 먼저 확인: `kubectl get pvc`에서 해당 PVC의 STATUS가 Pending인지 확인한다.\n\n**비슷한 과거 장애와 현재 상태**\n- 비슷한 과거 장애 · INC-1008(2026-10-08): 증상 Pod Pending, Insufficient memory / 원인 requests 과다 설정 → 과거에는 ① RB-07 쪽이었다\n- 비슷한 과거 장애 · INC-1009(2026-10-12): 증상 Pod Pending, PVC unbound / 원인 StorageClass 이름 오타 → 과거에는 ② RB-08 쪽이었다\n\n해당하는 쪽의 확인 결과(또는 화면에 나온 오류 메시지)를 알려 주시면 그 런북의 절차만 안내하겠습니다.\n대상 서비스 이름도 함께 알려 주세요."
         }
       ]
     },
@@ -431,7 +417,7 @@
           "runbooks": [
             "RB-07"
           ],
-          "answer": "Pod가 Pending 상태이고 \"0/3 nodes are available: Insufficient memory\" 메시지가 나타나는 증상은 **RB-07 (Pod Pending: 노드 CPU·메모리 리소스 부족)** 런북에 해당합니다.\n\n## 📋 진단 절차\n1. `kubectl describe pod <pod>`의 Events에서 Insufficient memory/cpu 메시지를 확인한다.\n2. `kubectl describe nodes`의 Allocated resources에서 노드별 requests 합계를 본다.\n3. 파드의 `resources.requests`가 과하게 큰지 확인한다.\n\n## 🔧 조치 절차\n1. **파드의 requests가 과하면** 실제 사용량에 맞춰 낮추는 변경을 요청한다.\n2. **노드가 부족하면** 클러스터 오토스케일러의 노드 증설 상태를 확인하고, 증설이 안 되면 인프라 담당자에게 노드 추가를 요청한다.\n3. **우선순위가 낮은 워크로드의 스케일다운**은 담당 팀과 협의한 뒤에만 진행한다.\n\n## 📊 과거 유사 사례\n**INC-1008** (inventory-api, 2026-10-08): 동일 증상으로 requests 과다 설정이 원인이었으며, requests를 실제 사용량에 맞춰 하향 조치하여 해결했습니다.\n\n## 🔍 현재 클러스터 상태\n- **order-worker**: unhealthy (0/2 파드, OOMKilled 반복 9회)\n- **web-frontend**: degraded (1/3 파드, CrashLoopBackOff 2개)\n- **payment-api**: degraded (4/4 파드, 에러율 8.4%)\n- **api-gateway**: degraded (502 간헐 발생)\n- **user-service, inventory-api**: healthy\n\n어떤 파드가 Pending 상태인지 알려주시면 해당 파드의 requests 설정과 노드 리소스 상태를 확인하여 구체적인 조치를 안내해드리겠습니다."
+          "answer": "Pod가 Pending 상태이고 \"0/3 nodes are available: Insufficient memory\" 메시지가 나타나는 증상은 **RB-07 (Pod Pending: 노드 CPU·메모리 리소스 부족)** 런북에 해당합니다.\n\n## 📊 과거 유사 사례\n**INC-1008** (inventory-api, 2026-10-08): 동일 증상(Pod Pending, Insufficient memory)으로 requests 과다 설정이 원인이었으며, requests를 실제 사용량에 맞춰 하향 조치로 해결되었습니다.\n\n## 🔍 진단 절차\n1. `kubectl describe pod <pod>`의 Events에서 Insufficient memory/cpu 메시지를 확인한다.\n2. `kubectl describe nodes`의 Allocated resources에서 노드별 requests 합계를 본다.\n3. 파드의 `resources.requests`가 과하게 큰지 확인한다.\n\n## 🔧 조치 절차\n1. **파드의 requests가 과하면** 실제 사용량에 맞춰 낮추는 변경을 요청한다.\n2. **노드가 부족하면** 클러스터 오토스케일러의 노드 증설 상태를 확인하고, 증설이 안 되면 인프라 담당자에게 노드 추가를 요청한다.\n3. **우선순위가 낮은 워크로드의 스케일다운**은 담당 팀과 협의한 뒤에만 진행한다.\n\n어떤 서비스의 파드가 Pending 상태인지 알려주시면 더 구체적으로 도와드리겠습니다."
         }
       ]
     },
@@ -461,10 +447,10 @@
             "agent",
             "mcp_call",
             "tool_call",
-            "tool:get_service_status",
+            "tool:search_incidents",
             "mcp_call",
             "tool_call",
-            "tool:search_incidents",
+            "tool:get_service_status",
             "agent",
             "supervisor",
             "final_response"
@@ -472,7 +458,7 @@
           "runbooks": [
             "RB-08"
           ],
-          "answer": "Pod가 Pending이고 Events에 \"pod has unbound immediate PersistentVolumeClaims\"가 뜨는 증상은 **RB-08 Pod Pending: PVC 바인딩 실패** 런북에 해당합니다.\n\n## 진단 절차\n1. `kubectl get pvc`에서 해당 PVC의 STATUS가 Pending인지 확인한다.\n2. `kubectl describe pvc <name>`에서 StorageClass 이름과 Events의 프로비저닝 오류를 본다.\n3. `kubectl get storageclass`로 지정한 StorageClass가 실제로 존재하는지 확인한다.\n\n## 조치 절차\n1. StorageClass 이름 오타이면 올바른 이름으로 PVC 매니페스트 수정을 요청한다.\n2. 프로비저너 오류이면 스토리지 담당자에게 Events 내용을 전달한다.\n3. PVC가 Bound가 된 뒤 파드가 Running이 되는지 확인한다.\n\n## 과거 유사 사례\nINC-1009(2026-10-12)에서 order-worker가 동일 증상(Pod Pending, PVC unbound)을 겪었고, 원인은 StorageClass 이름 오타였으며 PVC 매니페스트 수정으로 해결했습니다.\n\n## 현재 상태\norder-worker는 unhealthy(파드 0/2, 재시작 9회/시간, OOMKilled 반복) 상태입니다. 위 진단 절차로 PVC와 StorageClass를 확인해 주세요."
+          "answer": "**Pod Pending - PVC 바인딩 실패 (RB-08)**\n\n사용자가 보고한 증상(Pod Pending, \"pod has unbound immediate PersistentVolumeClaims\")에 맞는 런북을 찾았습니다.\n\n**과거 유사 사례:**\n- INC-1009 (2026-10-12, order-worker): 동일 증상으로 StorageClass 이름 오타가 원인이었으며, PVC 매니페스트의 StorageClass 수정으로 해결되었습니다.\n\n**진단 절차 (RB-08):**\n1. `kubectl get pvc`에서 해당 PVC의 STATUS가 Pending인지 확인한다.\n2. `kubectl describe pvc <name>`에서 StorageClass 이름과 Events의 프로비저닝 오류를 본다.\n3. `kubectl get storageclass`로 지정한 StorageClass가 실제로 존재하는지 확인한다.\n\n**조치 절차 (RB-08):**\n1. StorageClass 이름 오타이면 올바른 이름으로 PVC 매니페스트 수정을 요청한다.\n2. 프로비저너 오류이면 스토리지 담당자에게 Events 내용을 전달한다.\n3. PVC가 Bound가 된 뒤 파드가 Running이 되는지 확인한다.\n\n위 진단 절차를 수행하여 PVC 상태와 StorageClass를 확인한 후, 조치 절차에 따라 처리해주세요."
         }
       ]
     },
@@ -541,7 +527,7 @@
             "RB-05",
             "RB-06"
           ],
-          "answer": "DB 연결 타임아웃 증상에 대해 두 가지 원인별 구분 방법과 대응 절차를 안내드립니다.\n\n## **현재 상태 확인 결과**\n여러 DB 사용 서비스에서 동시 장애가 발생 중입니다:\n- payment-api: 에러율 8.4% (평소의 6배), 재시작 1회\n- order-worker: unhealthy 상태, 재시작 9회\n- api-gateway: 지연 증가 (p95 2300ms), 에러율 3.1%\n- web-frontend: 재시작 14회\n\n이 패턴은 **DB 페일오버 가능성**을 시사하지만, 최종 판단을 위해 아래 구분 방법을 따라 확인하시기 바랍니다.\n\n---\n\n## **원인 구분 방법**\n\n### **커넥션 풀 고갈 (RB-05)인 경우**\n- 앱 로그에 `timeout waiting for connection from pool` 메시지\n- DB 서버 자체는 정상\n- 현재 연결 수가 풀 최대값에 도달\n- 특정 서비스에서만 발생\n\n### **DB 페일오버 진행 중 (RB-06)인 경우**\n- 여러 서비스에서 동시에 타임아웃 발생\n- `connection refused` 오류 동반\n- DB 프라이머리 교체 중이거나 읽기 전용 상태 알림\n\n---\n\n## **RB-05: 커넥션 풀 고갈 대응**\n\n### 진단 절차\n1. 앱 메트릭에서 활성 커넥션 수가 풀 최대값(max pool size)과 같은지 확인한다.\n2. DB에서 `SELECT state, count(*) FROM pg_stat_activity GROUP BY state;`로 idle in transaction이 많은지 본다.\n\n### 조치 절차\n1. idle in transaction 상태로 오래 남은 세션을 정리한다.\n2. 앱의 풀 최대값을 한 단계 올리는 설정 변경을 요청한다.\n3. 반환되지 않는 커넥션이 있는 코드 경로를 개발팀에 전달한다.\n\n---\n\n## **RB-06: DB 페일오버 진행 중 대응**\n\n### 진단 절차\n1. DB 클러스터 상태에서 현재 프라이머리와 페일오버 시작 시각을 확인한다.\n2. 앱이 바라보는 DB 엔드포인트가 새 프라이머리로 갱신됐는지 확인한다.\n3. 복제 지연(replication lag)이 줄어드는지 본다.\n\n### 조치 절차\n1. 페일오버가 끝날 때까지(보통 2분 이내) 앱 풀 설정은 바꾸지 않고 기다린다.\n2. 완료 후에도 연결이 안 되는 앱은 DNS 캐시 갱신을 위해 해당 앱의 롤링 재시작을 담당자에게 요청한다.\n3. 정상화 후 쓰기 요청의 성공률을 확인한다.\n\n### 주의사항\n- 풀 크기를 늘리는 조치는 페일오버 중에는 효과가 없고 DB 부하만 키운다.\n\n---\n\n**다음 단계**: 위 구분 방법에 따라 DB 클러스터 상태와 앱 로그를 확인하여 어느 원인인지 판단 후 해당 런북의 절차를 따라주세요."
+          "answer": "## 현재 상태 확인 결과\n\n여러 서비스에서 동시에 장애가 발생하고 있습니다:\n- **payment-api**: degraded, 에러율 8.4% (평소의 6배)\n- **order-worker**: unhealthy, 파드 0/2 준비, OOMKilled 반복\n- **api-gateway**: degraded, 502 간헐 발생, 지연 증가 (p95 2300ms)\n\n다만 현재 상태 데이터에는 DB 커넥션 풀 수치나 DB 페일오버 진행 여부가 직접 포함되어 있지 않아, 아래 런북의 진단 절차로 원인을 구분해야 합니다.\n\n---\n\n## 원인 구분 방법\n\n### **커넥션 풀 고갈 (RB-05) 확인 방법**\n**증상 특징:**\n- 앱 로그에 `timeout waiting for connection from pool`이 반복\n- DB 서버 자체는 정상이고 현재 연결 수가 풀 최대값에 도달\n\n**진단 절차:**\n1. 앱 메트릭에서 활성 커넥션 수가 풀 최대값(max pool size)과 같은지 확인\n2. DB에서 `SELECT state, count(*) FROM pg_stat_activity GROUP BY state;`로 idle in transaction이 많은지 확인\n\n**조치 절차:**\n1. idle in transaction 상태로 오래 남은 세션을 정리\n2. 앱의 풀 최대값을 한 단계 올리는 설정 변경을 요청\n3. 반환되지 않는 커넥션이 있는 코드 경로를 개발팀에 전달\n\n---\n\n### **DB 페일오버 진행 중 (RB-06) 확인 방법**\n**증상 특징:**\n- 여러 서비스에서 **동시에** DB 연결 타임아웃과 `connection refused` 발생\n- DB 프라이머리가 교체되는 중이거나 읽기 전용 상태 알림이 함께 옴\n\n**진단 절차:**\n1. DB 클러스터 상태에서 현재 프라이머리와 페일오버 시작 시각을 확인\n2. 앱이 바라보는 DB 엔드포인트가 새 프라이머리로 갱신됐는지 확인\n3. 복제 지연(replication lag)이 줄어드는지 확인\n\n**조치 절차:**\n1. 페일오버가 끝날 때까지(보통 2분 이내) 앱 풀 설정은 바꾸지 않고 대기\n2. 완료 후에도 연결이 안 되는 앱은 DNS 캐시 갱신을 위해 해당 앱의 롤링 재시작을 담당자에게 요청\n3. 정상화 후 쓰기 요청의 성공률을 확인\n\n**주의:** 풀 크기를 늘리는 조치는 페일오버 중에는 효과가 없고 DB 부하만 증가시킴\n\n---\n\n## 권장 사항\n\n현재 여러 서비스에서 동시에 장애가 발생하고 있어 **DB 페일오버 시나리오(RB-06)** 가능성이 높습니다. 위 진단 절차로 DB 클러스터 상태와 페일오버 진행 여부를 먼저 확인하시기 바랍니다."
         }
       ]
     },
@@ -571,11 +557,10 @@
             "agent",
             "mcp_call",
             "tool_call",
-            "tool:get_service_status",
-            "agent",
+            "tool:search_incidents",
             "mcp_call",
             "tool_call",
-            "tool:search_incidents",
+            "tool:get_service_status",
             "agent",
             "supervisor",
             "agent",
@@ -587,7 +572,7 @@
             "RB-03",
             "RB-04"
           ],
-          "answer": "증상은 같지만 원인에 따라 조치가 다른 런북이 있어, 지금 말씀하신 내용만으로는 하나를 고를 수 없습니다. 어느 쪽인지 먼저 확인해 주세요. 조치 절차는 원인이 정해진 뒤에 안내합니다.\n\n**어느 경우인가요?**\n**① RB-03 api-gateway 502 간헐 발생: 업스트림 파드 readiness 실패**\n- 이런 경우: api-gateway 응답이 느리고 502 Bad Gateway가 간헐적으로 난다. 업스트림 Deployment의 Ready 파드 수가 요청 파드 수보다 적다.\n- 먼저 확인: `kubectl get endpoints <upstream-service>`로 엔드포인트에 Ready 파드가 몇 개 있는지 본다.\n**② RB-04 api-gateway 502/504 응답 지연: 게이트웨이 타임아웃·커넥션 설정 문제**\n- 이런 경우: api-gateway 응답이 느리고 502 또는 504가 난다. 업스트림 파드는 모두 Ready다. 긴 요청(업로드, 리포트)에서만 실패가 집중된다.\n- 먼저 확인: `kubectl get endpoints <upstream-service>`로 업스트림 파드가 모두 Ready인지 확인한다. 아니면 RB-03을 본다.\n\n**참고: 지금까지 확인한 운영 데이터**\n- 현재 상태 · api-gateway: 상태 degraded, 에러율(%) 3.1, 비고 502 간헐 발생, 지연 증가\n- 비슷한 과거 장애 · INC-1003(2026-09-02): 증상 502 에러 간헐 발생, 응답 지연 / 원인 업스트림 payment-api readiness probe 지연\n- 비슷한 과거 장애 · INC-1004(2026-09-11): 증상 504 타임아웃, 긴 요청에서만 실패 / 원인 proxy_read_timeout 30초가 리포트 생성 시간보다 짧음\n\n해당하는 쪽의 확인 결과(또는 화면에 나온 오류 메시지)를 알려 주시면 그 런북의 절차만 안내하겠습니다."
+          "answer": "증상은 같지만 원인에 따라 조치가 다른 런북이 있어, 지금 말씀하신 내용만으로는 하나를 고를 수 없습니다. 어느 쪽인지 먼저 확인해 주세요. 조치 절차는 원인이 정해진 뒤에 안내합니다. 이 증상은 과거에도 있었고(INC-1003, INC-1004), 그때 원인은 ①, ② 경우가 모두 있었습니다.\n\n**어느 경우인가요?**\n**① RB-03 api-gateway 502 간헐 발생: 업스트림 파드 readiness 실패**\n- 이런 경우: api-gateway 응답이 느리고 502 Bad Gateway가 간헐적으로 난다. 업스트림 Deployment의 Ready 파드 수가 요청 파드 수보다 적다.\n- 먼저 확인: `kubectl get endpoints <upstream-service>`로 엔드포인트에 Ready 파드가 몇 개 있는지 본다.\n**② RB-04 api-gateway 502/504 응답 지연: 게이트웨이 타임아웃·커넥션 설정 문제**\n- 이런 경우: api-gateway 응답이 느리고 502 또는 504가 난다. 업스트림 파드는 모두 Ready다. 긴 요청(업로드, 리포트)에서만 실패가 집중된다.\n- 먼저 확인: `kubectl get endpoints <upstream-service>`로 업스트림 파드가 모두 Ready인지 확인한다. 아니면 RB-03을 본다.\n\n**비슷한 과거 장애와 현재 상태**\n- 현재 상태 · api-gateway: 상태 degraded, 에러율(%) 3.1, 비고 502 간헐 발생, 지연 증가\n- 비슷한 과거 장애 · INC-1003(2026-09-02): 증상 502 에러 간헐 발생, 응답 지연 / 원인 업스트림 payment-api readiness probe 지연 → 과거에는 ① RB-03 쪽이었다\n- 비슷한 과거 장애 · INC-1004(2026-09-11): 증상 504 타임아웃, 긴 요청에서만 실패 / 원인 proxy_read_timeout 30초가 리포트 생성 시간보다 짧음 → 과거에는 ② RB-04 쪽이었다\n\n해당하는 쪽의 확인 결과(또는 화면에 나온 오류 메시지)를 알려 주시면 그 런북의 절차만 안내하겠습니다."
         },
         {
           "input": "업스트림 파드 일부가 readiness probe 실패로 Ready가 아니야. 502 원인 확인 절차 알려줘",
@@ -611,7 +596,7 @@
           "runbooks": [
             "RB-03"
           ],
-          "answer": "api-gateway 502 에러와 응답 지연 증상에 대해, 업스트림 파드 일부가 readiness probe 실패로 Ready가 아니라고 하셨으므로 **RB-03 (업스트림 파드 readiness 실패)** 런북을 적용합니다.\n\n## 현재 상태\n- **api-gateway**: 파드 3/3 Ready, 에러율 3.1%, p95 지연 2300ms, degraded 상태\n- 과거 유사 사례: INC-1003 (2026-09-02, 업스트림 payment-api readiness probe 지연으로 502 발생, probe initialDelaySeconds 상향으로 해결)\n\n## 진단 절차 (RB-03)\n\n1. **엔드포인트에서 Ready 파드 수 확인**\n   ```bash\n   kubectl get endpoints <upstream-service>\n   ```\n   엔드포인트에 Ready 파드가 몇 개 있는지 확인합니다.\n\n2. **비정상 파드의 상세 정보 확인**\n   ```bash\n   kubectl describe pod <upstream-pod>\n   ```\n   Events에서 Readiness probe failed 메시지를 찾습니다.\n\n3. **업스트림 파드 로그 확인**\n   ```bash\n   kubectl logs <upstream-pod>\n   ```\n   기동 지연이나 헬스체크 엔드포인트 오류를 확인합니다.\n\n## 조치 절차 (RB-03)\n\n1. readiness probe의 `initialDelaySeconds`와 `timeoutSeconds`가 앱 기동 시간에 맞는지 점검하고 조정을 요청합니다.\n\n2. 비정상 파드가 한두 개이면 해당 파드만 교체되도록 담당자에게 요청합니다. 서비스 전체 재시작은 하지 않습니다.\n\n3. 조치 후 `kubectl get endpoints`에서 Ready 파드 수가 정상으로 돌아왔는지 확인합니다.\n\n## 주의\n이 런북은 업스트림 파드 상태가 원인일 때만 사용합니다."
+          "answer": "업스트림 파드 일부가 readiness probe 실패로 Ready가 아닌 상황이 확인되었으므로, **RB-03 (api-gateway 502 간헐 발생: 업스트림 파드 readiness 실패)** 절차를 따릅니다.\n\n## 📋 진단 절차\n\n1. `kubectl get endpoints <upstream-service>`로 엔드포인트에 Ready 파드가 몇 개 있는지 본다.\n2. `kubectl describe pod <upstream-pod>`의 Events에서 Readiness probe failed 메시지를 찾는다.\n3. 업스트림 파드 로그에서 기동 지연이나 헬스체크 엔드포인트 오류를 확인한다.\n\n## 🔧 조치 절차\n\n1. readiness probe의 `initialDelaySeconds`와 `timeoutSeconds`가 앱 기동 시간에 맞는지 점검하고 조정을 요청한다.\n2. 비정상 파드가 한두 개이면 해당 파드만 교체되도록 담당자에게 요청한다. 서비스 전체 재시작은 하지 않는다.\n3. 조치 후 `kubectl get endpoints`에서 Ready 파드 수가 정상으로 돌아왔는지 확인한다.\n\n## ⚠️ 주의사항\n- 이 런북은 업스트림 파드 상태가 원인일 때만 쓴다.\n\n---\n\n**참고**: 과거 유사 사례 INC-1003에서 업스트림 payment-api readiness probe 지연으로 502 에러가 발생했으며, probe initialDelaySeconds 상향으로 해결되었습니다."
         }
       ]
     }
